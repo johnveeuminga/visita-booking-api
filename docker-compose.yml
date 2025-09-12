@@ -1,0 +1,83 @@
+version: "3.8"
+
+services:
+  # MySQL Database Service
+  mysql:
+    image: mysql:8.0
+    container_name: visita-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: VisitaRoot123!
+      MYSQL_DATABASE: VisitaBookingDB
+      MYSQL_USER: visitauser
+      MYSQL_PASSWORD: VisitaUser123!
+      TZ: UTC
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/conf:/etc/mysql/conf.d
+    networks:
+      - visita-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-pVisitaRoot123!",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    command: --default-authentication-plugin=mysql_native_password
+
+  # Visita Booking API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: visita-api
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Server=mysql;Database=VisitaBookingDB;User=visitauser;Password=VisitaUser123!;
+      - JWT__Secret=your-super-secure-256-bit-secret-key-for-production-use-change-this-immediately
+      - JWT__Issuer=visita-booking-api
+      - JWT__Audience=visita-booking-users
+      - JWT__AccessTokenExpiryMinutes=60
+      - JWT__RefreshTokenExpiryDays=30
+      - Google__ClientId=your-google-client-id.apps.googleusercontent.com
+    ports:
+      - "8080:8080"
+    networks:
+      - visita-network
+    volumes:
+      - app_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/auth/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+# Named volumes for persistent data
+volumes:
+  mysql_data:
+    driver: local
+  app_logs:
+    driver: local
+
+# Network for service communication
+networks:
+  visita-network:
+    driver: bridge
+    name: visita-network
