@@ -12,7 +12,8 @@ namespace visita_booking_api.Mapping
                 .ForMember(dest => dest.Photos, opt => opt.MapFrom(src => src.Photos.Where(p => p.IsActive).OrderBy(p => p.DisplayOrder)))
                 .ForMember(dest => dest.Amenities, opt => opt.MapFrom(src => src.Amenities))
                 .ForMember(dest => dest.PricingRules, opt => opt.MapFrom(src => src.PricingRules.Where(pr => pr.IsActive)))
-                .ForMember(dest => dest.MainPhotoUrl, opt => opt.MapFrom(src => src.MainPhotoUrl));
+                .ForMember(dest => dest.MainPhotoUrl, opt => opt.MapFrom(src => src.MainPhotoUrl))
+                .ForMember(dest => dest.Accommodation, opt => opt.MapFrom(src => src.Accommodation));
 
             CreateMap<Room, RoomListItemDTO>()
                 .ForMember(dest => dest.MainPhotoUrl, opt => opt.MapFrom(src => src.MainPhotoUrl))
@@ -64,7 +65,8 @@ namespace visita_booking_api.Mapping
     {
         public RoomPhotoMappingProfile()
         {
-            CreateMap<RoomPhoto, RoomPhotoDTO>();
+            CreateMap<RoomPhoto, RoomPhotoDTO>()
+                .ForMember(dest => dest.FileUrl, opt => opt.MapFrom(src => src.CdnUrl ?? src.S3Url));
         }
     }
 

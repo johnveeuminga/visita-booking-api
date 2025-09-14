@@ -33,6 +33,7 @@ namespace visita_booking_api.Services.Implementation
                 .Include(r => r.RoomAmenities)
                     .ThenInclude(ra => ra.Amenity)
                 .Include(r => r.PricingRules.Where(pr => pr.IsActive))
+                .Include(r => r.Accommodation)
                 .FirstOrDefaultAsync(r => r.Id == roomId);
 
             return room == null ? null : _mapper.Map<RoomDetailsDTO>(room);
@@ -205,11 +206,11 @@ namespace visita_booking_api.Services.Implementation
 
                 // Handle photo management
                 var currentPhotos = room.Photos.ToList();
-                var photosToKeep = updateDto.KeepPhotoIds ?? new List<int>();
-                var photosToDelete = currentPhotos.Where(p => !photosToKeep.Contains(p.Id)).ToList();
+                var photosToDelete = updateDto.PhotosToDelete ?? new List<int>();
+                var photosToDeleteEntities = currentPhotos.Where(p => photosToDelete.Contains(p.Id)).ToList();
 
-                // Delete unwanted photos from S3 and database
-                foreach (var photo in photosToDelete)
+                // Delete specified photos from S3 and database
+                foreach (var photo in photosToDeleteEntities)
                 {
                     try
                     {
@@ -229,7 +230,8 @@ namespace visita_booking_api.Services.Implementation
                 // Upload new photos
                 if (updateDto.PhotoFiles != null && updateDto.PhotoFiles.Any())
                 {
-                    var maxDisplayOrder = room.Photos.Where(p => photosToKeep.Contains(p.Id)).Max(p => (int?)p.DisplayOrder) ?? -1;
+                    var remainingPhotos = currentPhotos.Where(p => !photosToDelete.Contains(p.Id)).ToList();
+                    var maxDisplayOrder = remainingPhotos.Any() ? remainingPhotos.Max(p => p.DisplayOrder) : -1;
                     var displayOrder = maxDisplayOrder + 1;
 
                     foreach (var photoFile in updateDto.PhotoFiles)

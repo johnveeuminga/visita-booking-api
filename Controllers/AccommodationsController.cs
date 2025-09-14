@@ -319,6 +319,54 @@ namespace visita_booking_api.Controllers
             return NoContent();
         }
 
+        [HttpGet("{id:int}/rooms")]
+        public async Task<IActionResult> GetAccommodationRooms(int id)
+        {
+            // Check if accommodation exists and user has access
+            var accommodation = await _context.Accommodations
+                .Where(a => a.Id == id)
+                .FirstOrDefaultAsync();
+
+            if (accommodation == null)
+            {
+                return NotFound(new { Message = "Accommodation not found." });
+            }
+
+            // Check authorization - user should be able to view rooms if they can access the accommodation
+            if (!CanModifyAccommodation(accommodation))
+            {
+                return Forbid();
+            }
+
+            // Get rooms belonging to this accommodation
+            var rooms = await _context.Rooms
+                .Where(r => r.AccommodationId == id && r.IsActive)
+                .Select(r => new RoomListItemDTO
+                {
+                    Id = r.Id,
+                    Name = r.Name,
+                    Description = r.Description,
+                    DefaultPrice = r.DefaultPrice,
+                    MaxGuests = r.MaxGuests,
+                    IsActive = r.IsActive,
+                    UpdatedAt = r.UpdatedAt,
+                    MainPhotoUrl = r.Photos.OrderBy(p => p.Id).FirstOrDefault() != null 
+                        ? r.Photos.OrderBy(p => p.Id).FirstOrDefault()!.S3Url 
+                        : null,
+                    PhotoCount = r.Photos.Count,
+                    AmenityCount = r.RoomAmenities.Count,
+                    MainAmenities = r.RoomAmenities
+                        .OrderBy(ra => ra.Amenity.Name)
+                        .Take(3)
+                        .Select(ra => ra.Amenity.Name)
+                        .ToList()
+                })
+                .OrderBy(r => r.Name)
+                .ToListAsync();
+
+            return Ok(rooms);
+        }
+
         #region Private Methods
 
         private int? GetCurrentUserId()

@@ -16,12 +16,14 @@ namespace visita_booking_api.Models.DTOs
         public List<AmenityDTO> Amenities { get; set; } = new();
         public List<object> PricingRules { get; set; } = new();
         public string? MainPhotoUrl { get; set; }
+        public AccommodationSummaryDto? Accommodation { get; set; }
     }
 
     public class RoomListItemDTO
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
         public decimal DefaultPrice { get; set; }
         public int MaxGuests { get; set; }
         public bool IsActive { get; set; }
@@ -49,6 +51,9 @@ namespace visita_booking_api.Models.DTOs
         
         // Photo upload support
         public List<IFormFile>? PhotoFiles { get; set; }
+
+        [Required]
+        public int AccommodationId { get; set; }
     }
 
     public class RoomUpdateDTO
@@ -71,8 +76,8 @@ namespace visita_booking_api.Models.DTOs
         // Photo upload support
         public List<IFormFile>? PhotoFiles { get; set; }
         
-        // Photo management - specify which existing photos to keep
-        public List<int>? KeepPhotoIds { get; set; }
+        // Photo management - specify which existing photos to delete
+        public List<int>? PhotosToDelete { get; set; }
     }
 
     public class RoomPhotoDTO

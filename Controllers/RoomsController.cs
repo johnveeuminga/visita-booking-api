@@ -100,6 +100,13 @@ namespace visita_booking_api.Controllers
                     return Unauthorized("User authentication required");
                 }
 
+                // Validate AccommodationId and user permission
+                var accommodationValidation = await ValidateAccommodationAccess(request.AccommodationId);
+                if (accommodationValidation != null)
+                {
+                    return accommodationValidation;
+                }
+
                 var result = await _roomService.CreateAsync(request);
                 return CreatedAtAction(nameof(GetRoom), new { id = result.Id }, result);
             }
@@ -107,6 +114,147 @@ namespace visita_booking_api.Controllers
             {
                 _logger.LogError(ex, "Error creating room");
                 return BadRequest($"Failed to create room: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Upload photos to an existing room
+        /// </summary>
+        [HttpPost("{id}/photos")]
+        [Authorize]
+        public async Task<ActionResult> UploadRoomPhotos(int id, [FromForm] List<IFormFile> photos)
+        {
+            try
+            {
+                var currentUserId = GetCurrentUserId();
+                if (currentUserId == null)
+                {
+                    return Unauthorized("User authentication required");
+                }
+
+                if (id <= 0)
+                {
+                    return BadRequest("Invalid room ID");
+                }
+
+                if (photos == null || !photos.Any())
+                {
+                    return BadRequest("No photos provided");
+                }
+
+                // Validate room exists and user has access
+                var room = await _context.Rooms
+                    .Include(r => r.Accommodation)
+                    .FirstOrDefaultAsync(r => r.Id == id && r.IsActive);
+
+                if (room == null)
+                {
+                    return NotFound($"Room with ID {id} not found");
+                }
+
+                // Check authorization - user should own the accommodation or be admin
+                if (room.Accommodation != null)
+                {
+                    var canModify = currentUserId.Value == room.Accommodation.OwnerId || IsAdmin();
+                    if (!canModify)
+                    {
+                        return Forbid("You can only upload photos for rooms you own");
+                    }
+                }
+
+                // Get current max display order for proper sequencing
+                var maxDisplayOrder = await _context.RoomPhotos
+                    .Where(p => p.RoomId == id && p.IsActive)
+                    .MaxAsync(p => (int?)p.DisplayOrder) ?? -1;
+
+                var uploadedPhotos = new List<RoomPhotoDTO>();
+                var errors = new List<object>();
+
+                foreach (var photo in photos)
+                {
+                    try
+                    {
+                        // Validate file
+                        if (photo.Length == 0)
+                        {
+                            errors.Add(new { fileName = photo.FileName, error = "File is empty" });
+                            continue;
+                        }
+
+                        if (photo.Length > 10 * 1024 * 1024) // 10MB limit
+                        {
+                            errors.Add(new { fileName = photo.FileName, error = "File size exceeds 10MB limit" });
+                            continue;
+                        }
+
+                        var allowedTypes = new[] { "image/jpeg", "image/png", "image/webp" };
+                        if (!allowedTypes.Contains(photo.ContentType?.ToLower()))
+                        {
+                            errors.Add(new { fileName = photo.FileName, error = "Invalid file type. Only JPEG, PNG, and WebP are allowed" });
+                            continue;
+                        }
+
+                        // Upload to S3
+                        var uploadResult = await _s3FileService.UploadFileAsync(photo, $"rooms/{id}/photos");
+                        if (!uploadResult.Success)
+                        {
+                            errors.Add(new { fileName = photo.FileName, error = uploadResult.Error });
+                            continue;
+                        }
+
+                        // Create room photo record
+                        var roomPhoto = new RoomPhoto
+                        {
+                            RoomId = id,
+                            S3Key = uploadResult.S3Key ?? "",
+                            S3Url = uploadResult.FileUrl ?? "",
+                            FileName = uploadResult.FileName ?? photo.FileName,
+                            FileSize = uploadResult.FileSize,
+                            ContentType = uploadResult.ContentType ?? photo.ContentType ?? "image/jpeg",
+                            DisplayOrder = ++maxDisplayOrder,
+                            IsActive = true,
+                            UploadedAt = DateTime.UtcNow,
+                            LastModified = DateTime.UtcNow
+                        };
+
+                        _context.RoomPhotos.Add(roomPhoto);
+                        await _context.SaveChangesAsync();
+
+                        // Map to DTO for response
+                        var photoDto = new RoomPhotoDTO
+                        {
+                            Id = roomPhoto.Id,
+                            FileName = roomPhoto.FileName,
+                            FileUrl = roomPhoto.CdnUrl ?? roomPhoto.S3Url,
+                            LastModified = roomPhoto.LastModified
+                        };
+
+                        uploadedPhotos.Add(photoDto);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error uploading photo {FileName} for room {RoomId}", photo.FileName, id);
+                        errors.Add(new { fileName = photo.FileName, error = "Upload failed due to server error" });
+                    }
+                }
+
+                // Update room timestamp
+                room.UpdateTimestamp();
+                await _context.SaveChangesAsync();
+
+                // Return response with uploaded photos and any errors
+                return Ok(new
+                {
+                    message = $"Successfully uploaded {uploadedPhotos.Count} of {photos.Count} photos",
+                    uploadedPhotos,
+                    errors,
+                    totalPhotos = await _context.RoomPhotos.CountAsync(p => p.RoomId == id && p.IsActive)
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error uploading photos for room {RoomId}", id);
+                return StatusCode(500, "Internal server error");
             }
         }
 
@@ -226,6 +374,29 @@ namespace visita_booking_api.Controllers
         private bool IsAdmin()
         {
             return User.IsInRole("Admin");
+        }
+
+        private async Task<ActionResult?> ValidateAccommodationAccess(int accommodationId)
+        {
+            // Check if accommodation exists and is active
+            var accommodation = await _context.Accommodations
+                .Where(a => a.Id == accommodationId && a.IsActive)
+                .FirstOrDefaultAsync();
+
+            if (accommodation == null)
+            {
+                return NotFound(new { Message = "Accommodation not found or inactive" });
+            }
+
+            // Check if user can modify this accommodation
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue || 
+                (accommodation.OwnerId != currentUserId.Value && !IsAdmin()))
+            {
+                return Forbid("You can only create rooms for accommodations you own");
+            }
+
+            return null; // Validation passed
         }
 
         #endregion
