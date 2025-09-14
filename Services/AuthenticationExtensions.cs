@@ -70,8 +70,8 @@ namespace VisitaBookingApi.Services
             // Configure Authorization with role-based policies
             services.AddAuthorization(options =>
             {
-                // Default policy requires authentication
-                options.FallbackPolicy = options.DefaultPolicy;
+                // Don't set FallbackPolicy - let endpoints be anonymous by default
+                // Only require auth when explicitly marked with [Authorize]
 
                 // Role-based policies
                 options.AddPolicy("GuestPolicy", policy => 

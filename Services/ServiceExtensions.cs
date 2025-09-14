@@ -1,4 +1,5 @@
 using Amazon.S3;
+using Amazon;
 using visita_booking_api.Services.Interfaces;
 using visita_booking_api.Services.Implementation;
 using VisitaBookingApi.Services.Interfaces;
@@ -7,9 +8,10 @@ namespace visita_booking_api.Services
 {
     public static class ServiceExtensions
     {
-        public static IServiceCollection AddAppServices(this IServiceCollection services)
+        public static IServiceCollection AddAppServices(this IServiceCollection services, IConfiguration configuration)
         {
-            // Add AWS S3 client
+            // Add AWS S3 client - uses AWS credential chain (AWS config files, IAM roles, environment vars)
+            services.AddDefaultAWSOptions(configuration.GetAWSOptions());
             services.AddAWSService<IAmazonS3>();
             
             // Register business services

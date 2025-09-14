@@ -107,6 +107,48 @@ namespace visita_booking_api.Services.Implementation
                     await _context.SaveChangesAsync();
                 }
 
+                // Handle photo uploads
+                if (createDto.PhotoFiles != null && createDto.PhotoFiles.Any())
+                {
+                    var displayOrder = 0;
+                    foreach (var photoFile in createDto.PhotoFiles)
+                    {
+                        try
+                        {
+                            var uploadResult = await _s3FileService.UploadFileAsync(photoFile, $"rooms/{room.Id}/photos");
+                            if (uploadResult.Success && !string.IsNullOrEmpty(uploadResult.FileUrl))
+                            {
+                                var roomPhoto = new RoomPhoto
+                                {
+                                    RoomId = room.Id,
+                                    S3Key = uploadResult.S3Key ?? "",
+                                    S3Url = uploadResult.FileUrl,
+                                    FileName = uploadResult.FileName ?? photoFile.FileName,
+                                    FileSize = uploadResult.FileSize,
+                                    ContentType = uploadResult.ContentType ?? photoFile.ContentType,
+                                    DisplayOrder = displayOrder++,
+                                    IsActive = true,
+                                    UploadedAt = DateTime.UtcNow,
+                                    LastModified = DateTime.UtcNow
+                                };
+
+                                _context.RoomPhotos.Add(roomPhoto);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Photo upload failed for room {RoomId}: {Error}", room.Id, uploadResult.Error);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error uploading photo for room {RoomId}", room.Id);
+                            // Continue with other photos even if one fails
+                        }
+                    }
+
+                    await _context.SaveChangesAsync();
+                }
+
                 await transaction.CommitAsync();
 
                 // Return created room details
@@ -127,6 +169,7 @@ namespace visita_booking_api.Services.Implementation
             {
                 var room = await _context.Rooms
                     .Include(r => r.RoomAmenities)
+                    .Include(r => r.Photos)
                     .FirstOrDefaultAsync(r => r.Id == roomId);
 
                 if (room == null) return null;
@@ -158,6 +201,71 @@ namespace visita_booking_api.Services.Implementation
                         AssignedAt = DateTime.UtcNow
                     });
                     _context.RoomAmenities.AddRange(newRoomAmenities);
+                }
+
+                // Handle photo management
+                var currentPhotos = room.Photos.ToList();
+                var photosToKeep = updateDto.KeepPhotoIds ?? new List<int>();
+                var photosToDelete = currentPhotos.Where(p => !photosToKeep.Contains(p.Id)).ToList();
+
+                // Delete unwanted photos from S3 and database
+                foreach (var photo in photosToDelete)
+                {
+                    try
+                    {
+                        if (!string.IsNullOrEmpty(photo.S3Key))
+                        {
+                            await _s3FileService.DeleteFileAsync(photo.S3Key);
+                        }
+                        _context.RoomPhotos.Remove(photo);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error deleting photo {PhotoId} for room {RoomId}", photo.Id, roomId);
+                        // Continue with other photos even if one fails to delete
+                    }
+                }
+
+                // Upload new photos
+                if (updateDto.PhotoFiles != null && updateDto.PhotoFiles.Any())
+                {
+                    var maxDisplayOrder = room.Photos.Where(p => photosToKeep.Contains(p.Id)).Max(p => (int?)p.DisplayOrder) ?? -1;
+                    var displayOrder = maxDisplayOrder + 1;
+
+                    foreach (var photoFile in updateDto.PhotoFiles)
+                    {
+                        try
+                        {
+                            var uploadResult = await _s3FileService.UploadFileAsync(photoFile, $"rooms/{roomId}/photos");
+                            if (uploadResult.Success && !string.IsNullOrEmpty(uploadResult.FileUrl))
+                            {
+                                var roomPhoto = new RoomPhoto
+                                {
+                                    RoomId = roomId,
+                                    S3Key = uploadResult.S3Key ?? "",
+                                    S3Url = uploadResult.FileUrl,
+                                    FileName = uploadResult.FileName ?? photoFile.FileName,
+                                    FileSize = uploadResult.FileSize,
+                                    ContentType = uploadResult.ContentType ?? photoFile.ContentType,
+                                    DisplayOrder = displayOrder++,
+                                    IsActive = true,
+                                    UploadedAt = DateTime.UtcNow,
+                                    LastModified = DateTime.UtcNow
+                                };
+
+                                _context.RoomPhotos.Add(roomPhoto);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Photo upload failed for room {RoomId}: {Error}", roomId, uploadResult.Error);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error uploading new photo for room {RoomId}", roomId);
+                            // Continue with other photos even if one fails
+                        }
+                    }
                 }
 
                 await _context.SaveChangesAsync();
@@ -208,6 +316,7 @@ namespace visita_booking_api.Services.Implementation
             return _mapper.Map<List<RoomPhotoDTO>>(photos);
         }
 
+        [Obsolete("Use CreateAsync or UpdateAsync with PhotoFiles property for integrated photo upload")]
         public async Task<RoomPhotoDTO> UploadPhotoAsync(int roomId, RoomPhotoUploadDTO uploadDto)
         {
             // Verify room exists

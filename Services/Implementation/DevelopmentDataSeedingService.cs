@@ -29,21 +29,24 @@ namespace visita_booking_api.Services.Implementation
                 _logger.LogInformation("Starting development data seeding...");
 
                 // Check if data already exists
-                if (await _context.Hotels.AnyAsync())
+                if (await _context.Accommodations.AnyAsync())
                 {
                     _logger.LogInformation("Development data already exists. Skipping seeding.");
                     return;
                 }
 
-                // Seed hotels
-                var hotels = await SeedHotelsAsync(2);
+                // Seed owner user first
+                var owner = await SeedAccommodationOwnerAsync();
+
+                // Seed accommodations
+                var accommodations = await SeedAccommodationsAsync(owner.Id);
                 
-                // Seed rooms for each hotel
+                // Seed rooms for each accommodation
                 var rooms = new List<Room>();
-                foreach (var hotel in hotels)
+                foreach (var accommodation in accommodations)
                 {
-                    var hotelRooms = await SeedRoomsForHotelAsync(hotel);
-                    rooms.AddRange(hotelRooms);
+                    var accommodationRooms = await SeedRoomsForAccommodationAsync(accommodation);
+                    rooms.AddRange(accommodationRooms);
                 }
 
                 // Add photos to rooms
@@ -68,113 +71,70 @@ namespace visita_booking_api.Services.Implementation
             }
         }
 
-        private async Task<User> SeedUsersAsync()
+        private async Task<User> SeedAccommodationOwnerAsync()
         {
-            _logger.LogInformation("Seeding users...");
+            _logger.LogInformation("Seeding accommodation owner user...");
 
-            // Check if any users already exist
-            var existingUser = await _context.Users.FirstOrDefaultAsync();
-            if (existingUser != null)
+            var accommodationOwner = new User
             {
-                _logger.LogInformation("Users already exist. Using existing user ID: {UserId}", existingUser.Id);
-                return existingUser;
-            }
-
-            var hotelOwner = new User
-            {
-                Email = "hotelowner@example.com",
-                FirstName = "Hotel",
+                Email = "accommodationowner@example.com",
+                FirstName = "Accommodation", 
                 LastName = "Owner",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("HotelOwner123!"),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("AccommodationOwner123!"),
+                Provider = "Local",
                 IsEmailVerified = true,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
 
-            _context.Users.Add(hotelOwner);
+            _context.Users.Add(accommodationOwner);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Seeded 1 hotel owner user with ID: {UserId}", hotelOwner.Id);
-            return hotelOwner;
+            _logger.LogInformation("Seeded 1 accommodation owner user with ID: {UserId}", accommodationOwner.Id);
+            return accommodationOwner;
         }
 
-        private async Task<List<Hotel>> SeedHotelsAsync(int ownerId)
+        private async Task<List<Accommodation>> SeedAccommodationsAsync(int ownerId)
         {
-            _logger.LogInformation("Seeding hotels with owner ID: {OwnerId}", ownerId);
+            _logger.LogInformation("Seeding accommodations with owner ID: {OwnerId}", ownerId);
 
-            var hotels = new List<Hotel>
+            var accommodations = new List<Accommodation>
             {
-                new Hotel
+                new Accommodation
                 {
-                    Id = 1,
                     Name = "Grand Marina Hotel",
                     Description = "A luxurious waterfront hotel with stunning bay views and world-class amenities. Perfect for business and leisure travelers.",
-                    Address = "123 Marina Boulevard",
-                    City = "Manila",
-                    Country = "Philippines", 
-                    PostalCode = "1000",
-                    PhoneNumber = "+63-2-555-0101",
-                    Email = "info@grandmarina.ph",
-                    Website = "https://www.grandmarinahotel.ph",
-                    Rating = 4.5m,
-                    ReviewCount = 1247,
-                    HasParking = true,
-                    HasWifi = true,
-                    HasPool = true,
-                    HasGym = true,
-                    HasSpa = true,
-                    HasRestaurant = true,
-                    CheckInTime = new TimeSpan(15, 0, 0), // 3:00 PM
-                    CheckOutTime = new TimeSpan(12, 0, 0), // 12:00 PM
+                    Logo = "https://example.com/logos/grand-marina.png",
+                    OwnerId = ownerId,
                     IsActive = true,
-                    IsVerified = true,
-                    OwnerId = null, // No owner for now - will fix this later
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 },
-                new Hotel
+                new Accommodation
                 {
-                    Id = 2,
-                    Name = "Cozy Mountain Retreat",
+                    Name = "Cozy Mountain Retreat", 
                     Description = "A charming boutique hotel nestled in the mountains, offering peaceful surroundings and personalized service.",
-                    Address = "456 Mountain View Road",
-                    City = "Baguio",
-                    Country = "Philippines",
-                    PostalCode = "2600",
-                    PhoneNumber = "+63-74-555-0202",
-                    Email = "reservations@cozymountain.ph",
-                    Website = "https://www.cozymountainretreat.ph",
-                    Rating = 4.2m,
-                    ReviewCount = 892,
-                    HasParking = true,
-                    HasWifi = true,
-                    HasPool = false,
-                    HasGym = false,
-                    HasSpa = true,
-                    HasRestaurant = true,
-                    CheckInTime = new TimeSpan(14, 0, 0), // 2:00 PM
-                    CheckOutTime = new TimeSpan(11, 0, 0), // 11:00 AM
+                    Logo = "https://example.com/logos/cozy-mountain.png",
+                    OwnerId = ownerId,
                     IsActive = true,
-                    IsVerified = true,
-                    OwnerId = ownerId, // Use the actual owner ID
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 }
             };
 
-            _context.Hotels.AddRange(hotels);
+            _context.Accommodations.AddRange(accommodations);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Seeded {Count} hotels", hotels.Count);
-            return hotels;
+            _logger.LogInformation("Seeded {Count} accommodations", accommodations.Count);
+            return accommodations;
         }
 
-        private async Task<List<Room>> SeedRoomsForHotelAsync(Hotel hotel)
+        private async Task<List<Room>> SeedRoomsForAccommodationAsync(Accommodation accommodation)
         {
-            _logger.LogInformation("Seeding rooms for hotel: {HotelName}", hotel.Name);
+            _logger.LogInformation("Seeding rooms for accommodation: {AccommodationName}", accommodation.Name);
 
             var rooms = new List<Room>();
-            var roomTypes = hotel.Id == 1 ? 
+            var roomTypes = accommodation.Name == "Grand Marina Hotel" ? 
                 // Grand Marina Hotel - luxury rooms
                 new[] 
                 {
@@ -203,7 +163,7 @@ namespace visita_booking_api.Services.Implementation
                     Description = description,
                     DefaultPrice = price,
                     MaxGuests = guests,
-                    HotelId = hotel.Id,
+                    AccommodationId = accommodation.Id,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
@@ -216,7 +176,7 @@ namespace visita_booking_api.Services.Implementation
             _context.Rooms.AddRange(rooms);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Seeded {Count} rooms for {HotelName}", rooms.Count, hotel.Name);
+            _logger.LogInformation("Seeded {Count} rooms for {AccommodationName}", rooms.Count, accommodation.Name);
             return rooms;
         }
 

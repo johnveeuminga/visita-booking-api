@@ -19,8 +19,9 @@ namespace VisitaBookingApi.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<UserSession> UserSessions { get; set; }
 
-        // Hotel management entities  
-        public DbSet<Hotel> Hotels { get; set; }
+        
+        // Accommodation management entities
+        public DbSet<Accommodation> Accommodations { get; set; }
 
         // Room management entities
         public DbSet<Room> Rooms { get; set; }
@@ -164,32 +165,21 @@ namespace VisitaBookingApi.Data
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
-            // Hotel entity configuration
-            modelBuilder.Entity<Hotel>(entity =>
+            // Accommodation entity configuration
+            modelBuilder.Entity<Accommodation>(entity =>
             {
-                entity.HasKey(h => h.Id);
-                entity.Property(h => h.Name).IsRequired().HasMaxLength(200);
-                entity.Property(h => h.Description).HasMaxLength(1000);
-                entity.Property(h => h.Address).IsRequired().HasMaxLength(500);
-                entity.Property(h => h.City).IsRequired().HasMaxLength(100);
-                entity.Property(h => h.Country).IsRequired().HasMaxLength(100);
-                entity.Property(h => h.PostalCode).HasMaxLength(20);
-                entity.Property(h => h.PhoneNumber).HasMaxLength(20);
-                entity.Property(h => h.Email).HasMaxLength(100);
-                entity.Property(h => h.Website).HasMaxLength(200);
-                entity.Property(h => h.BusinessRegistrationNumber).HasMaxLength(100);
-                entity.Property(h => h.TaxId).HasMaxLength(100);
-                entity.Property(h => h.Rating).HasPrecision(3, 2);
-                entity.HasIndex(h => h.Name);
-                entity.HasIndex(h => h.City);
-                entity.HasIndex(h => h.IsActive);
-                entity.HasIndex(h => h.IsVerified);
-                entity.HasIndex(h => h.Rating);
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.Name).IsRequired().HasMaxLength(200);
+                entity.Property(a => a.Description).HasMaxLength(1000);
+                entity.Property(a => a.Logo).HasMaxLength(500);
+                entity.HasIndex(a => a.Name);
+                entity.HasIndex(a => a.IsActive);
+                entity.HasIndex(a => a.OwnerId);
 
-                entity.HasOne(h => h.Owner)
+                entity.HasOne(a => a.Owner)
                     .WithMany()
-                    .HasForeignKey(h => h.OwnerId)
-                    .OnDelete(DeleteBehavior.SetNull);
+                    .HasForeignKey(a => a.OwnerId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Room entity configuration
@@ -202,12 +192,12 @@ namespace VisitaBookingApi.Data
                 entity.Property(r => r.MaxGuests).HasDefaultValue(2);
                 entity.HasIndex(r => r.Name);
                 entity.HasIndex(r => r.IsActive);
-                entity.HasIndex(r => r.HotelId);
+                entity.HasIndex(r => r.AccommodationId);
                 entity.HasIndex(r => r.MaxGuests);
 
-                entity.HasOne(r => r.Hotel)
-                    .WithMany(h => h.Rooms)
-                    .HasForeignKey(r => r.HotelId)
+                entity.HasOne(r => r.Accommodation)
+                    .WithMany(a => a.Rooms)
+                    .HasForeignKey(r => r.AccommodationId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
 

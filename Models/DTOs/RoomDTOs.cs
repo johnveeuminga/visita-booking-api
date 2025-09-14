@@ -46,6 +46,9 @@ namespace visita_booking_api.Models.DTOs
         public int MaxGuests { get; set; } = 2;
         
         public List<int> AmenityIds { get; set; } = new();
+        
+        // Photo upload support
+        public List<IFormFile>? PhotoFiles { get; set; }
     }
 
     public class RoomUpdateDTO
@@ -64,6 +67,12 @@ namespace visita_booking_api.Models.DTOs
         public bool IsActive { get; set; } = true;
         
         public List<int> AmenityIds { get; set; } = new();
+        
+        // Photo upload support
+        public List<IFormFile>? PhotoFiles { get; set; }
+        
+        // Photo management - specify which existing photos to keep
+        public List<int>? KeepPhotoIds { get; set; }
     }
 
     public class RoomPhotoDTO

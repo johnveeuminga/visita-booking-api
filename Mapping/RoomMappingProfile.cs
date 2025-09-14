@@ -51,7 +51,7 @@ namespace visita_booking_api.Mapping
                 .ForMember(dest => dest.CreatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.UpdatedAt, opt => opt.Ignore())
                 .ForMember(dest => dest.CacheVersion, opt => opt.Ignore())
-                .ForMember(dest => dest.HotelId, opt => opt.Ignore())
+                .ForMember(dest => dest.AccommodationId, opt => opt.Ignore())
                 .ForMember(dest => dest.Photos, opt => opt.Ignore())
                 .ForMember(dest => dest.RoomAmenities, opt => opt.Ignore())
                 .ForMember(dest => dest.PricingRules, opt => opt.Ignore())

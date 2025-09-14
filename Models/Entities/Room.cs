@@ -28,15 +28,15 @@ namespace visita_booking_api.Models.Entities
 
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-        // For multi-hotel support
-        public int? HotelId { get; set; }
+        // For multi-accommodation support
+        public int? AccommodationId { get; set; }
 
         // Cache versioning for invalidation
         public int CacheVersion { get; set; } = 1;
 
-        // Navigation properties
-        [ForeignKey(nameof(HotelId))]
-        public virtual Hotel? Hotel { get; set; }
+        
+        [ForeignKey(nameof(AccommodationId))]
+        public virtual Accommodation? Accommodation { get; set; }
         public virtual ICollection<RoomPhoto> Photos { get; set; } = new List<RoomPhoto>();
         public virtual ICollection<RoomAmenity> RoomAmenities { get; set; } = new List<RoomAmenity>();
         public virtual ICollection<RoomPricingRule> PricingRules { get; set; } = new List<RoomPricingRule>();

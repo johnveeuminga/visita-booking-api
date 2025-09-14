@@ -15,7 +15,10 @@ namespace visita_booking_api.Services.Interfaces
 
         // Photo Management
         Task<List<RoomPhotoDTO>> GetPhotosAsync(int roomId);
+        
+        [Obsolete("Use CreateAsync or UpdateAsync with PhotoFiles property for integrated photo upload")]
         Task<RoomPhotoDTO> UploadPhotoAsync(int roomId, RoomPhotoUploadDTO uploadDto);
+        
         Task<bool> DeletePhotoAsync(int roomId, int photoId);
         Task<bool> ReorderPhotosAsync(int roomId, List<int> photoIds);
 
@@ -53,5 +56,6 @@ namespace visita_booking_api.Services.Interfaces
         Task<bool> DeleteFileAsync(string s3Key);
         Task<string> GetPresignedUrlAsync(string s3Key, TimeSpan expiration);
         Task<List<FileUploadResponse>> UploadMultipleFilesAsync(List<IFormFile> files, string folder);
+        string ExtractS3KeyFromUrl(string fileUrl);
     }
 }

@@ -66,7 +66,7 @@ builder.Services.AddAutoMapper(config => {
 });
 
 // Add business services
-builder.Services.AddAppServices();
+builder.Services.AddAppServices(builder.Configuration);
 
 var app = builder.Build();
 

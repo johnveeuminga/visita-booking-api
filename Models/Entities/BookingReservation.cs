@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using VisitaBookingApi.Models.Entities;
+using VisitaBookingApi.Models;
 
 namespace visita_booking_api.Models.Entities
 {

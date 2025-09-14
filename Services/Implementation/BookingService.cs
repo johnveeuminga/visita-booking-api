@@ -64,7 +64,7 @@ namespace visita_booking_api.Services.Implementation
 
                 // Get room details
                 var room = await _context.Rooms
-                    .Include(r => r.Hotel)
+                    .Include(r => r.Accommodation)
                     .FirstOrDefaultAsync(r => r.Id == request.RoomId && r.IsActive);
 
                 if (room == null)
