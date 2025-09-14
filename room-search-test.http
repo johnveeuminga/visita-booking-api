@@ -131,3 +131,51 @@ Content-Type: application/json
 #    - Search results cached for 3 minutes
 #    - Pricing data cached per calendar service
 #############################################################################
+
+### 8. Booking Conflict Test - Search should exclude rooms with overlapping bookings
+# Test dates: 2025-09-14 to 2025-09-21
+# This should exclude any rooms that have confirmed bookings or active reservations
+# that overlap with these dates (including the specific scenario mentioned)
+POST {{baseUrl}}/api/rooms/search
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-09-14",
+  "checkOutDate": "2025-09-21",
+  "guests": 2,
+  "page": 1,
+  "pageSize": 20,
+  "sortBy": "Name",
+  "sortOrder": "Ascending"
+}
+
+### 9. Overlapping Booking Scenarios Test
+# Scenario A: 14-09-2025 CheckIn, 18-09-2025 CheckOut  
+# Scenario B: 15-09-2025 CheckIn, 17-09-2025 CheckOut (overlaps with A)
+# Test with slightly different dates to verify overlap detection
+POST {{baseUrl}}/api/rooms/search
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-09-15",
+  "checkOutDate": "2025-09-17",
+  "guests": 2,
+  "page": 1,
+  "pageSize": 20,
+  "sortBy": "Name",
+  "sortOrder": "Ascending"
+}
+
+### 10. Edge Case Test - Same day check-in/check-out overlap
+POST {{baseUrl}}/api/rooms/search
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-09-18",
+  "checkOutDate": "2025-09-19",
+  "guests": 1,
+  "page": 1,
+  "pageSize": 10,
+  "sortBy": "Price",
+  "sortOrder": "Ascending"
+}

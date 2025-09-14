@@ -667,19 +667,58 @@ namespace visita_booking_api.Services
 
         private async Task<List<int>> GetBlockedRoomIdsForPeriodAsync(DateTime checkIn, DateTime checkOut, List<int>? roomIds = null)
         {
-            // Single query to find all rooms that have ANY unavailable day in the period
-            var query = _context.RoomAvailabilityOverrides
+            var blockedRoomIds = new List<int>();
+
+            // 1. Rooms blocked by availability overrides
+            var overrideQuery = _context.RoomAvailabilityOverrides
                 .Where(o => o.Date >= checkIn && o.Date < checkOut && !o.IsAvailable);
 
             if (roomIds != null && roomIds.Any())
-                query = query.Where(o => roomIds.Contains(o.RoomId));
+                overrideQuery = overrideQuery.Where(o => roomIds.Contains(o.RoomId));
 
-            var blockedRoomIds = await query
+            var overrideBlockedRooms = await overrideQuery
                 .Select(o => o.RoomId)
                 .Distinct()
                 .ToListAsync();
 
-            return blockedRoomIds;
+            blockedRoomIds.AddRange(overrideBlockedRooms);
+
+            // 2. Rooms with confirmed bookings (overlapping date ranges)
+            var bookingQuery = _context.Bookings
+                .Where(b => b.Status != BookingStatus.Cancelled
+                    && b.CheckInDate < checkOut
+                    && b.CheckOutDate > checkIn);
+
+            if (roomIds != null && roomIds.Any())
+                bookingQuery = bookingQuery.Where(b => roomIds.Contains(b.RoomId));
+
+            var bookingBlockedRooms = await bookingQuery
+                .Select(b => b.RoomId)
+                .Distinct()
+                .ToListAsync();
+
+            blockedRoomIds.AddRange(bookingBlockedRooms);
+
+            // 3. Rooms with active reservations (not expired)
+            var currentTime = DateTime.UtcNow;
+            var reservationQuery = _context.BookingReservations
+                .Where(r => r.Status == ReservationStatus.Active
+                    && r.ExpiresAt > currentTime
+                    && r.CheckInDate < checkOut
+                    && r.CheckOutDate > checkIn);
+
+            if (roomIds != null && roomIds.Any())
+                reservationQuery = reservationQuery.Where(r => roomIds.Contains(r.RoomId));
+
+            var reservationBlockedRooms = await reservationQuery
+                .Select(r => r.RoomId)
+                .Distinct()
+                .ToListAsync();
+
+            blockedRoomIds.AddRange(reservationBlockedRooms);
+
+            // Return distinct room IDs
+            return blockedRoomIds.Distinct().ToList();
         }
 
         public async Task<Dictionary<int, decimal>> GetRoomPricesAsync(List<int> roomIds, DateTime checkIn, DateTime checkOut)
