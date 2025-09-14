@@ -13,5 +13,6 @@ namespace VisitaBookingApi.Services.Interfaces
         Task<ApiResponse<bool>> VerifyEmailAsync(string email, string token);
         Task<ApiResponse<bool>> LogoutAsync(string refreshToken);
         Task<ApiResponse<bool>> RevokeAllTokensAsync(int userId);
+        Task<UserDto?> GetUserByIdAsync(int userId);
     }
 }

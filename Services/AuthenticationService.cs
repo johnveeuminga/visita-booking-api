@@ -421,6 +421,29 @@ namespace VisitaBookingApi.Services
             }
         }
 
+        public async Task<UserDto?> GetUserByIdAsync(int userId)
+        {
+            try
+            {
+                var user = await _context.Users
+                    .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                    .FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
+
+                if (user == null)
+                {
+                    return null;
+                }
+
+                return MapToUserDto(user);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving user by ID: {UserId}", userId);
+                return null;
+            }
+        }
+
         #region Private Methods
 
         private string HashPassword(string password)

@@ -268,25 +268,56 @@ namespace VisitaBookingApi.Controllers
         /// <returns>Current user details</returns>
         [HttpGet("me")]
         [Authorize]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<UserDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        public ActionResult<ApiResponse<object>> GetCurrentUser()
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<ActionResult<ApiResponse<UserDto>>> GetCurrentUser()
         {
-            var userInfo = new
+            Console.WriteLine("GetCurrentUser endpoint hit");
+            try
             {
-                Id = User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                Email = User.FindFirst(ClaimTypes.Email)?.Value,
-                Name = User.FindFirst(ClaimTypes.Name)?.Value,
-                Provider = User.FindFirst("provider")?.Value,
-                Roles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList()
-            };
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+                {
+                    return Unauthorized(new ApiResponse<UserDto>
+                    {
+                        Success = false,
+                        Message = "Invalid user context.",
+                        Data = null
+                    });
+                }
 
-            return Ok(new ApiResponse<object>
+                // Get complete user information from the authentication service
+                var userInfo = await _authService.GetUserByIdAsync(userId);
+                
+                if (userInfo == null)
+                {
+                    return NotFound(new ApiResponse<UserDto>
+                    {
+                        Success = false,
+                        Message = "User not found.",
+                        Data = null
+                    });
+                }
+
+                return Ok(new ApiResponse<UserDto>
+                {
+                    Success = true,
+                    Message = "User information retrieved successfully.",
+                    Data = userInfo
+                });
+            }
+            catch (Exception ex)
             {
-                Success = true,
-                Message = "User information retrieved successfully.",
-                Data = userInfo
-            });
+                _logger.LogError(ex, "Error retrieving current user information");
+                return StatusCode(500, new ApiResponse<UserDto>
+                {
+                    Success = false,
+                    Message = "An error occurred while retrieving user information.",
+                    Data = null
+                });
+            }
         }
 
         /// <summary>

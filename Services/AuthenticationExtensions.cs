@@ -49,47 +49,47 @@ namespace VisitaBookingApi.Services
                 };
 
                 // Add event handlers for debugging and logging
-                // options.Events = new JwtBearerEvents
-                // {
-                //     OnAuthenticationFailed = context =>
-                //     {
-                //         var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<AuthenticationService>>();
-                //         logger.LogError("JWT Authentication failed: {Message}", context.Exception.Message);
-                //         return Task.CompletedTask;
-                //     },
-                //     OnTokenValidated = context =>
-                //     {
-                //         var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<AuthenticationService>>();
-                //         logger.LogDebug("JWT Token validated for user: {UserId}", 
-                //             context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value);
-                //         return Task.CompletedTask;
-                //     }
-                // };
+                options.Events = new JwtBearerEvents
+                {
+                    OnAuthenticationFailed = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<AuthenticationService>>();
+                        logger.LogError("JWT Authentication failed: {Message}", context.Exception.Message);
+                        return Task.CompletedTask;
+                    },
+                    OnTokenValidated = context =>
+                    {
+                        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<AuthenticationService>>();
+                        logger.LogDebug("JWT Token validated for user: {UserId}", 
+                            context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value);
+                        return Task.CompletedTask;
+                    }
+                };
             });
 
             // Configure Authorization with role-based policies
-            // services.AddAuthorization(options =>
-            // {
-            //     // Default policy requires authentication
-            //     options.FallbackPolicy = options.DefaultPolicy;
+            services.AddAuthorization(options =>
+            {
+                // Default policy requires authentication
+                options.FallbackPolicy = options.DefaultPolicy;
 
-            //     // Role-based policies
-            //     options.AddPolicy("GuestPolicy", policy => 
-            //         policy.RequireAuthenticatedUser().RequireRole("Guest"));
+                // Role-based policies
+                options.AddPolicy("GuestPolicy", policy => 
+                    policy.RequireAuthenticatedUser().RequireRole("Guest"));
                 
-            //     options.AddPolicy("HotelPolicy", policy => 
-            //         policy.RequireAuthenticatedUser().RequireRole("Hotel"));
+                options.AddPolicy("HotelPolicy", policy => 
+                    policy.RequireAuthenticatedUser().RequireRole("Hotel"));
                 
-            //     options.AddPolicy("AdminPolicy", policy => 
-            //         policy.RequireAuthenticatedUser().RequireRole("Admin"));
+                options.AddPolicy("AdminPolicy", policy => 
+                    policy.RequireAuthenticatedUser().RequireRole("Admin"));
 
-            //     // Combined policies
-            //     options.AddPolicy("HotelOrAdminPolicy", policy => 
-            //         policy.RequireAuthenticatedUser().RequireRole("Hotel", "Admin"));
+                // Combined policies
+                options.AddPolicy("HotelOrAdminPolicy", policy => 
+                    policy.RequireAuthenticatedUser().RequireRole("Hotel", "Admin"));
                 
-            //     options.AddPolicy("AllUsersPolicy", policy => 
-            //         policy.RequireAuthenticatedUser().RequireRole("Guest", "Hotel", "Admin"));
-            // });
+                options.AddPolicy("AllUsersPolicy", policy => 
+                    policy.RequireAuthenticatedUser().RequireRole("Guest", "Hotel", "Admin"));
+            });
 
             return services;
         }
@@ -104,8 +104,6 @@ namespace VisitaBookingApi.Services
         {
             var connectionString = configuration.GetConnectionString("DefaultConnection") 
                 ?? throw new InvalidOperationException("Database connection string is required");
-
-            Console.WriteLine(connectionString);
 
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseMySQL(connectionString));
