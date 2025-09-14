@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # MySQL Database Service
   mysql:
@@ -37,6 +35,47 @@ services:
       start_period: 30s
     command: --default-authentication-plugin=mysql_native_password
 
+  # Redis Cache Service
+  redis:
+    image: redis:7-alpine
+    container_name: visita-redis
+    restart: unless-stopped
+    environment:
+      - REDIS_PASSWORD=VisitaRedis123!
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    networks:
+      - visita-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass VisitaRedis123!
+
+  # Redis Commander (Optional - Redis GUI)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: visita-redis-gui
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:VisitaRedis123!
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=admin123
+    ports:
+      - "8081:8081"
+    networks:
+      - visita-network
+    profiles:
+      - tools # Only start with --profile tools
+
   # Visita Booking API Service
   api:
     build:
@@ -47,16 +86,22 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ConnectionStrings__DefaultConnection=Server=mysql;Database=VisitaBookingDB;User=visitauser;Password=VisitaUser123!;
+      - ConnectionStrings__RedisConnection=redis:6379,password=VisitaRedis123!,abortConnect=false
       - JWT__Secret=your-super-secure-256-bit-secret-key-for-production-use-change-this-immediately
       - JWT__Issuer=visita-booking-api
       - JWT__Audience=visita-booking-users
       - JWT__AccessTokenExpiryMinutes=60
       - JWT__RefreshTokenExpiryDays=30
       - Google__ClientId=your-google-client-id.apps.googleusercontent.com
+      - Caching__UseRedis=true
+      - Caching__UseMemoryCache=true
+      - Caching__DefaultTTLMinutes=10
     ports:
       - "8080:8080"
     networks:
@@ -72,6 +117,8 @@ services:
 # Named volumes for persistent data
 volumes:
   mysql_data:
+    driver: local
+  redis_data:
     driver: local
   app_logs:
     driver: local

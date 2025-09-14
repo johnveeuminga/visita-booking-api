@@ -1,0 +1,133 @@
+### Room Search API Testing - Smart Pagination Strategy 4
+
+# Set base URL
+@baseUrl = http://localhost:5170
+@authToken = Bearer your-jwt-token-here
+
+### 1. Basic Room Search (No Price Filter - Simple Pagination)
+POST {{baseUrl}}/api/rooms/search
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-12-15",
+  "checkOutDate": "2025-12-18",
+  "guests": 2,
+  "page": 1,
+  "pageSize": 15,
+  "sortBy": "Name",
+  "sortOrder": "Ascending"
+}
+
+### 2. Room Search WITH Price Filter (Smart Pagination Kicks In)
+POST {{baseUrl}}/api/rooms/search
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-12-15",
+  "checkOutDate": "2025-12-18",
+  "guests": 2,
+  "minPrice": 100,
+  "maxPrice": 300,
+  "page": 1,
+  "pageSize": 15,
+  "sortBy": "Price",
+  "sortOrder": "Ascending"
+}
+
+### 3. Advanced Search with Multiple Filters (Smart Pagination + Complex Filtering)
+POST {{baseUrl}}/api/rooms/search
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-12-20",
+  "checkOutDate": "2025-12-23",
+  "guests": 4,
+  "minPrice": 150,
+  "maxPrice": 500,
+  "searchTerm": "suite",
+  "requiredAmenities": [1, 2],
+  "amenityCategories": ["Comfort", "Technology"],
+  "hasPhotos": true,
+  "page": 1,
+  "pageSize": 10,
+  "sortBy": "Price",
+  "sortOrder": "Ascending"
+}
+
+### 4. Quick Search for Auto-Complete
+GET {{baseUrl}}/api/rooms/search/quick?query=deluxe&checkIn=2025-12-15&checkOut=2025-12-18&limit=5
+
+### 5. Search Suggestions
+GET {{baseUrl}}/api/rooms/search/suggestions?query=lux&limit=10
+
+### 6. Popular Price Ranges
+GET {{baseUrl}}/api/rooms/search/price-ranges
+
+### 7. Search Statistics (Admin Only)
+GET {{baseUrl}}/api/rooms/search/stats?checkIn=2025-12-15&checkOut=2025-12-18&guests=2
+Authorization: {{authToken}}
+
+### 8. Performance Test (Admin Only) - Test Smart Pagination Performance
+POST {{baseUrl}}/api/rooms/search/test-performance
+Authorization: {{authToken}}
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-12-15",
+  "checkOutDate": "2025-12-18",
+  "guests": 2,
+  "minPrice": 50,
+  "maxPrice": 200,
+  "page": 1,
+  "pageSize": 25,
+  "sortBy": "Price",
+  "sortOrder": "Ascending"
+}
+
+### 9. Test Edge Case - High Price Range (Should trigger multiple batches)
+POST {{baseUrl}}/api/rooms/search
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-12-15",
+  "checkOutDate": "2025-12-18",
+  "guests": 1,
+  "minPrice": 800,
+  "maxPrice": 1500,
+  "page": 1,
+  "pageSize": 20,
+  "sortBy": "Price",
+  "sortOrder": "Ascending"
+}
+
+### 10. Test Large Page Size with Price Filter
+POST {{baseUrl}}/api/rooms/search
+Content-Type: application/json
+
+{
+  "checkInDate": "2025-12-25",
+  "checkOutDate": "2025-12-28",
+  "guests": 3,
+  "minPrice": 100,
+  "maxPrice": 400,
+  "page": 1,
+  "pageSize": 50,
+  "sortBy": "Name",
+  "sortOrder": "Ascending"
+}
+
+#############################################################################
+# Smart Pagination Benefits Test Scenarios:
+#
+# 1. Without price filter: Uses simple pagination (1 query)
+# 2. With price filter: Uses smart pagination (2-10 queries as needed)
+# 3. Performance benefits:
+#    - Ensures consistent page sizes (you get 15 results when you ask for 15)
+#    - Intelligent batching (increases batch size for later attempts)
+#    - Maximum 10 batches to prevent infinite loops
+#    - Detailed logging for debugging and monitoring
+# 4. Cache optimization:
+#    - Unavailable room IDs cached for 5 minutes
+#    - Search results cached for 3 minutes
+#    - Pricing data cached per calendar service
+#############################################################################

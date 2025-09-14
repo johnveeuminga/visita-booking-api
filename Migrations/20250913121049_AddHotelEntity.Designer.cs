@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VisitaBookingApi.Data;
 
@@ -10,9 +11,11 @@ using VisitaBookingApi.Data;
 namespace visita_booking_api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250913121049_AddHotelEntity")]
+    partial class AddHotelEntity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -397,7 +400,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 1,
                             Icon = "ac-unit",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 708, DateTimeKind.Utc).AddTicks(8710),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(3857),
                             Name = "Air Conditioning"
                         },
                         new
@@ -409,7 +412,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 2,
                             Icon = "whatshot",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(221),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6506),
                             Name = "Heating"
                         },
                         new
@@ -421,7 +424,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 3,
                             Icon = "deck",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(226),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6514),
                             Name = "Balcony"
                         },
                         new
@@ -433,7 +436,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 4,
                             Icon = "location-city",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(228),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6515),
                             Name = "City View"
                         },
                         new
@@ -445,7 +448,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 5,
                             Icon = "waves",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(230),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6517),
                             Name = "Ocean View"
                         },
                         new
@@ -457,7 +460,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 1,
                             Icon = "wifi",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(239),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6531),
                             Name = "Free WiFi"
                         },
                         new
@@ -469,7 +472,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 2,
                             Icon = "tv",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(241),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6532),
                             Name = "Smart TV"
                         },
                         new
@@ -481,7 +484,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 3,
                             Icon = "usb",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(243),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6534),
                             Name = "USB Charging Ports"
                         },
                         new
@@ -493,7 +496,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 4,
                             Icon = "speaker",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(244),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6535),
                             Name = "Bluetooth Speaker"
                         },
                         new
@@ -505,7 +508,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 1,
                             Icon = "bathroom",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(246),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6537),
                             Name = "Private Bathroom"
                         },
                         new
@@ -517,7 +520,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 2,
                             Icon = "shower",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(248),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6539),
                             Name = "Shower"
                         },
                         new
@@ -529,7 +532,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 3,
                             Icon = "bathtub",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(249),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6540),
                             Name = "Bathtub"
                         },
                         new
@@ -541,7 +544,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 4,
                             Icon = "dry",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(268),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6541),
                             Name = "Hair Dryer"
                         },
                         new
@@ -553,7 +556,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 5,
                             Icon = "soap",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(270),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6542),
                             Name = "Toiletries"
                         },
                         new
@@ -565,7 +568,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 1,
                             Icon = "kitchen",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(272),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6544),
                             Name = "Mini Fridge"
                         },
                         new
@@ -577,7 +580,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 2,
                             Icon = "coffee-maker",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(279),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6545),
                             Name = "Coffee Maker"
                         },
                         new
@@ -589,7 +592,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 3,
                             Icon = "microwave",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(280),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6546),
                             Name = "Microwave"
                         },
                         new
@@ -601,7 +604,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 1,
                             Icon = "gpp-good",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(283),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6548),
                             Name = "Safe"
                         },
                         new
@@ -613,7 +616,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 2,
                             Icon = "smoke-free",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(284),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6549),
                             Name = "Smoke Detector"
                         },
                         new
@@ -625,472 +628,9 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 3,
                             Icon = "medical-services",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 13, 13, 45, 18, 709, DateTimeKind.Utc).AddTicks(286),
+                            LastModified = new DateTime(2025, 9, 13, 12, 10, 49, 334, DateTimeKind.Utc).AddTicks(6551),
                             Name = "First Aid Kit"
                         });
-                });
-
-            modelBuilder.Entity("visita_booking_api.Models.Entities.Booking", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ActualCheckInAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime?>("ActualCheckOutAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<decimal>("BaseAmount")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<string>("BookingReference")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)");
-
-                    b.Property<string>("CancellationReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CancelledBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<DateTime>("CheckInDate")
-                        .HasColumnType("date");
-
-                    b.Property<DateTime>("CheckOutDate")
-                        .HasColumnType("date");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("GuestEmail")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("GuestName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("GuestPhone")
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)");
-
-                    b.Property<int>("NumberOfGuests")
-                        .HasColumnType("int");
-
-                    b.Property<int>("NumberOfNights")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PaymentStatus")
-                        .HasColumnType("int");
-
-                    b.Property<int>("RoomId")
-                        .HasColumnType("int");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("longblob");
-
-                    b.Property<decimal>("ServiceFee")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<string>("SpecialRequests")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("TaxAmount")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("TotalAmount")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookingReference")
-                        .IsUnique();
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("GuestEmail");
-
-                    b.HasIndex("PaymentStatus");
-
-                    b.HasIndex("RoomId");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("CheckInDate", "CheckOutDate");
-
-                    b.ToTable("Bookings");
-                });
-
-            modelBuilder.Entity("visita_booking_api.Models.Entities.BookingAvailabilityLock", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    b.Property<int?>("BookingId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CheckInDate")
-                        .HasColumnType("date");
-
-                    b.Property<DateTime>("CheckOutDate")
-                        .HasColumnType("date");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("IpAddress")
-                        .HasMaxLength(45)
-                        .HasColumnType("varchar(45)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("tinyint(1)");
-
-                    b.Property<string>("LockReference")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("varchar(30)");
-
-                    b.Property<int>("LockType")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ReleaseReason")
-                        .HasMaxLength(200)
-                        .HasColumnType("varchar(200)");
-
-                    b.Property<DateTime?>("ReleasedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int?>("ReservationId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("RoomId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SessionId")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("UserAgent")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<int?>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookingId");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("ExpiresAt");
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("LockReference")
-                        .IsUnique();
-
-                    b.HasIndex("ReservationId");
-
-                    b.HasIndex("RoomId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("RoomId", "CheckInDate", "CheckOutDate");
-
-                    b.ToTable("BookingAvailabilityLocks");
-                });
-
-            modelBuilder.Entity("visita_booking_api.Models.Entities.BookingPayment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<string>("BankCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<int>("BookingId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("CardLastFour")
-                        .HasMaxLength(4)
-                        .HasColumnType("varchar(4)");
-
-                    b.Property<DateTime?>("ConfirmedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(3)
-                        .HasColumnType("varchar(3)")
-                        .HasDefaultValue("USD");
-
-                    b.Property<DateTime?>("FailedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("FailureReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
-
-                    b.Property<decimal>("NetAmount")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<int>("PaymentMethod")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PaymentReference")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("varchar(30)");
-
-                    b.Property<int>("PaymentType")
-                        .HasColumnType("int");
-
-                    b.Property<decimal?>("PlatformFee")
-                        .HasPrecision(10, 2)
-                        .HasColumnType("decimal(10,2)");
-
-                    b.Property<DateTime?>("ProcessedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<decimal?>("ProviderFee")
-                        .HasPrecision(10, 2)
-                        .HasColumnType("decimal(10,2)");
-
-                    b.Property<string>("ProviderMetadata")
-                        .HasColumnType("json");
-
-                    b.Property<string>("ProviderPaymentMethod")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("ProviderTransactionId")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("RefundReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<int?>("RefundedFromPaymentId")
-                        .HasColumnType("int");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("longblob");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("XenditExternalId")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("XenditInvoiceId")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("XenditPaymentId")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("XenditPaymentUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<string>("XenditWebhookData")
-                        .HasColumnType("json");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookingId");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("PaymentReference")
-                        .IsUnique();
-
-                    b.HasIndex("PaymentType");
-
-                    b.HasIndex("RefundedFromPaymentId");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("XenditInvoiceId");
-
-                    b.HasIndex("XenditPaymentId");
-
-                    b.ToTable("BookingPayments");
-                });
-
-            modelBuilder.Entity("visita_booking_api.Models.Entities.BookingReservation", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    b.Property<int>("BookingId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("CancellationReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<DateTime?>("CancelledAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime>("CheckInDate")
-                        .HasColumnType("date");
-
-                    b.Property<DateTime>("CheckOutDate")
-                        .HasColumnType("date");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("ExtensionCount")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("LastExtendedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("NumberOfGuests")
-                        .HasColumnType("int");
-
-                    b.Property<string>("PaymentUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("varchar(500)");
-
-                    b.Property<DateTime?>("PaymentUrlExpiresAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ReservationReference")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)");
-
-                    b.Property<DateTime>("ReservedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<int>("RoomId")
-                        .HasColumnType("int");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("longblob");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("TotalAmount")
-                        .HasPrecision(12, 2)
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("XenditInvoiceId")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookingId")
-                        .IsUnique();
-
-                    b.HasIndex("ExpiresAt");
-
-                    b.HasIndex("ReservationReference")
-                        .IsUnique();
-
-                    b.HasIndex("ReservedAt");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("XenditInvoiceId");
-
-                    b.HasIndex("RoomId", "CheckInDate", "CheckOutDate");
-
-                    b.ToTable("BookingReservations");
                 });
 
             modelBuilder.Entity("visita_booking_api.Models.Entities.HolidayCalendar", b =>
@@ -1646,105 +1186,9 @@ namespace visita_booking_api.Migrations
                     b.Navigation("ParentAmenity");
                 });
 
-            modelBuilder.Entity("visita_booking_api.Models.Entities.Booking", b =>
-                {
-                    b.HasOne("visita_booking_api.Models.Entities.Room", "Room")
-                        .WithMany()
-                        .HasForeignKey("RoomId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("VisitaBookingApi.Models.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Room");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("visita_booking_api.Models.Entities.BookingAvailabilityLock", b =>
-                {
-                    b.HasOne("visita_booking_api.Models.Entities.Booking", "Booking")
-                        .WithMany()
-                        .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("visita_booking_api.Models.Entities.BookingReservation", "Reservation")
-                        .WithMany()
-                        .HasForeignKey("ReservationId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("visita_booking_api.Models.Entities.Room", "Room")
-                        .WithMany()
-                        .HasForeignKey("RoomId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("VisitaBookingApi.Models.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Booking");
-
-                    b.Navigation("Reservation");
-
-                    b.Navigation("Room");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("visita_booking_api.Models.Entities.BookingPayment", b =>
-                {
-                    b.HasOne("visita_booking_api.Models.Entities.Booking", "Booking")
-                        .WithMany("Payments")
-                        .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("visita_booking_api.Models.Entities.BookingPayment", "RefundedFromPayment")
-                        .WithMany("RefundPayments")
-                        .HasForeignKey("RefundedFromPaymentId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Booking");
-
-                    b.Navigation("RefundedFromPayment");
-                });
-
-            modelBuilder.Entity("visita_booking_api.Models.Entities.BookingReservation", b =>
-                {
-                    b.HasOne("visita_booking_api.Models.Entities.Booking", "Booking")
-                        .WithOne("Reservation")
-                        .HasForeignKey("visita_booking_api.Models.Entities.BookingReservation", "BookingId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("visita_booking_api.Models.Entities.Room", "Room")
-                        .WithMany()
-                        .HasForeignKey("RoomId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("VisitaBookingApi.Models.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Booking");
-
-                    b.Navigation("Room");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("visita_booking_api.Models.Entities.Hotel", b =>
                 {
-                    b.HasOne("VisitaBookingApi.Models.User", "Owner")
+                    b.HasOne("VisitaBookingApi.Models.Entities.User", "Owner")
                         .WithMany()
                         .HasForeignKey("OwnerId")
                         .OnDelete(DeleteBehavior.SetNull);
@@ -1840,18 +1284,6 @@ namespace visita_booking_api.Migrations
                     b.Navigation("ChildAmenities");
 
                     b.Navigation("RoomAmenities");
-                });
-
-            modelBuilder.Entity("visita_booking_api.Models.Entities.Booking", b =>
-                {
-                    b.Navigation("Payments");
-
-                    b.Navigation("Reservation");
-                });
-
-            modelBuilder.Entity("visita_booking_api.Models.Entities.BookingPayment", b =>
-                {
-                    b.Navigation("RefundPayments");
                 });
 
             modelBuilder.Entity("visita_booking_api.Models.Entities.Hotel", b =>
