@@ -26,6 +26,9 @@ namespace visita_booking_api.Models.DTOs
 
         public string? SearchTerm { get; set; }
 
+        // Accommodation filter - limits search to rooms within specific accommodation
+        public int? AccommodationId { get; set; }
+
         [Range(1, 100)]
         public int Page { get; set; } = 1;
 
@@ -155,6 +158,7 @@ namespace visita_booking_api.Models.DTOs
         public List<AmenityDTO> RequiredAmenities { get; set; } = new();
         public List<AmenityCategory> AmenityCategories { get; set; } = new();
         public string? SearchTerm { get; set; }
+        public int? AccommodationId { get; set; }
         public RoomSearchSortBy SortBy { get; set; }
         public SortOrder SortOrder { get; set; }
     }

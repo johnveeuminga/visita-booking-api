@@ -19,7 +19,8 @@ namespace visita_booking_api.Mapping
                 .ForMember(dest => dest.MainPhotoUrl, opt => opt.MapFrom(src => src.MainPhotoUrl))
                 .ForMember(dest => dest.PhotoCount, opt => opt.MapFrom(src => src.Photos.Count(p => p.IsActive)))
                 .ForMember(dest => dest.AmenityCount, opt => opt.MapFrom(src => src.Amenities.Count))
-                .ForMember(dest => dest.MainAmenities, opt => opt.MapFrom(src => src.Amenities.Take(5).Select(a => a.Name).ToList()));
+                .ForMember(dest => dest.MainAmenities, opt => opt.MapFrom(src => src.Amenities.Take(5).Select(a => a.Name).ToList()))
+                .ForMember(dest => dest.Accommodation, opt => opt.MapFrom(src => src.Accommodation));
 
             CreateMap<Room, RoomSearchResultDTO>()
                 .ForMember(dest => dest.MainPhotoUrl, opt => opt.MapFrom(src => src.MainPhotoUrl))

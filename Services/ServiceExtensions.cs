@@ -18,6 +18,7 @@ namespace visita_booking_api.Services
             services.AddScoped<IRoomService, SimpleRoomService>();
             services.AddScoped<IRoomCalendarService, RoomCalendarService>();
             services.AddScoped<IRoomSearchService, RoomSearchService>();
+            services.AddScoped<IAccommodationSearchService, AccommodationSearchService>();
             services.AddScoped<IRoomPriceCacheService, RoomPriceCacheService>();
             services.AddScoped<IAmenityService, SimpleAmenityService>();
             services.AddScoped<IS3FileService, SimpleS3FileService>();

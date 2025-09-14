@@ -45,6 +45,7 @@ namespace visita_booking_api.Services.Implementation
                 .Include(r => r.Photos.Where(p => p.IsActive))
                 .Include(r => r.RoomAmenities)
                     .ThenInclude(ra => ra.Amenity)
+                .Include(r => r.Accommodation)
                 .AsQueryable();
 
             if (!includeInactive)

@@ -614,6 +614,12 @@ namespace visita_booking_api.Services.Implementation
                 .Where(r => r.IsActive && !unavailableRoomIds.Contains(r.Id))
                 .AsQueryable();
 
+            // PRIORITY FILTER: Filter by accommodation ID first to dramatically reduce search scope
+            if (searchRequest.AccommodationId.HasValue)
+            {
+                query = query.Where(r => r.AccommodationId == searchRequest.AccommodationId.Value);
+            }
+
             // Filter by guest capacity
             if (searchRequest.Guests > 0)
             {
@@ -889,6 +895,7 @@ namespace visita_booking_api.Services.Implementation
                 RequiredAmenities = new List<AmenityDTO>(), // Will be populated if needed
                 AmenityCategories = searchRequest.AmenityCategories,
                 SearchTerm = searchRequest.SearchTerm,
+                AccommodationId = searchRequest.AccommodationId,
                 SortBy = searchRequest.SortBy,
                 SortOrder = searchRequest.SortOrder
             };
@@ -951,6 +958,7 @@ namespace visita_booking_api.Services.Implementation
                 RequiredAmenities = string.Join(",", request.RequiredAmenities.OrderBy(x => x)),
                 AmenityCategories = string.Join(",", request.AmenityCategories.OrderBy(x => x)),
                 request.SearchTerm,
+                request.AccommodationId,  // Include accommodation ID in cache key
                 request.Page,
                 request.PageSize,
                 request.SortBy,

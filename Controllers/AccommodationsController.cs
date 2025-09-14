@@ -320,6 +320,7 @@ namespace visita_booking_api.Controllers
         }
 
         [HttpGet("{id:int}/rooms")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetAccommodationRooms(int id)
         {
             // Check if accommodation exists and user has access
@@ -333,10 +334,10 @@ namespace visita_booking_api.Controllers
             }
 
             // Check authorization - user should be able to view rooms if they can access the accommodation
-            if (!CanModifyAccommodation(accommodation))
-            {
-                return Forbid();
-            }
+            // if (!CanModifyAccommodation(accommodation))
+            // {
+            //     return Forbid();
+            // }
 
             // Get rooms belonging to this accommodation
             var rooms = await _context.Rooms
