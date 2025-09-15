@@ -31,8 +31,8 @@ builder.Services.AddCors(options =>
     
     var productionOrigins = corsConfig.GetSection("ProductionOrigins").Get<string[]>() ?? new string[]
     {
-        "https://yourdomain.com",
-        "https://www.yourdomain.com"
+        "https://booking.baguio.visita.ph",
+        "https://visita-booking.vercel.app"
     };
 
     options.AddPolicy("AllowFrontend", policy =>
