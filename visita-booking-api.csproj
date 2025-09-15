@@ -27,6 +27,7 @@
     <PackageReference Include="MySql.EntityFrameworkCore" Version="9.0.6" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
     <PackageReference Include="StackExchange.Redis" Version="2.9.17" />
+    <PackageReference Include="Xendit.net" Version="1.1.0" />
   </ItemGroup>
 
 </Project>

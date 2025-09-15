@@ -67,6 +67,11 @@ builder.Services.AddAutoMapper(config => {
 
 // Add business services
 builder.Services.AddAppServices(builder.Configuration);
+builder.Services.AddBookingServices();
+builder.Services.ConfigureBookingOptions(builder.Configuration);
+
+// Add timezone service for GMT+8
+builder.Services.AddSingleton<ITimezoneService, visita_booking_api.Services.Implementation.TimezoneService>();
 
 var app = builder.Build();
 

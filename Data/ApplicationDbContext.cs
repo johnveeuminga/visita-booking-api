@@ -349,7 +349,6 @@ namespace VisitaBookingApi.Data
                 entity.Property(b => b.CreatedBy).HasMaxLength(100);
                 entity.Property(b => b.UpdatedBy).HasMaxLength(100);
                 entity.Property(b => b.CancelledBy).HasMaxLength(100);
-                entity.Property(b => b.RowVersion).IsRowVersion();
 
                 // Indexes
                 entity.HasIndex(b => b.BookingReference).IsUnique();
@@ -385,7 +384,6 @@ namespace VisitaBookingApi.Data
                 entity.Property(br => br.PaymentUrl).HasMaxLength(500);
                 entity.Property(br => br.CancellationReason).HasMaxLength(500);
                 entity.Property(br => br.UpdatedBy).HasMaxLength(100);
-                entity.Property(br => br.RowVersion).IsRowVersion();
 
                 // Indexes
                 entity.HasIndex(br => br.ReservationReference).IsUnique();
@@ -434,7 +432,6 @@ namespace VisitaBookingApi.Data
                 entity.Property(bp => bp.FailureReason).HasMaxLength(1000);
                 entity.Property(bp => bp.RefundReason).HasMaxLength(500);
                 entity.Property(bp => bp.CreatedBy).HasMaxLength(100);
-                entity.Property(bp => bp.RowVersion).IsRowVersion();
 
                 // JSON columns
                 entity.Property(bp => bp.XenditWebhookData).HasColumnType("json");

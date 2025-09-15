@@ -58,10 +58,6 @@ namespace visita_booking_api.Models.Entities
 
         public DateTime? PaymentUrlExpiresAt { get; set; }
 
-        // Concurrency Control
-        [Timestamp]
-        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
-
         // Extension/Renewal
         public int ExtensionCount { get; set; } = 0;
         public DateTime? LastExtendedAt { get; set; }

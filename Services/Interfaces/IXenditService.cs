@@ -14,6 +14,14 @@ namespace visita_booking_api.Services.Interfaces
         Task<XenditInvoiceResult> CreateInvoiceAsync(Booking booking, int expiryMinutes = 30);
 
         /// <summary>
+        /// Creates a Xendit invoice with specific expiry time
+        /// </summary>
+        /// <param name="booking">The booking to create invoice for</param>
+        /// <param name="expiryDateTime">Exact expiry date and time</param>
+        /// <returns>Invoice creation result with payment URL</returns>
+        Task<XenditInvoiceResult> CreateInvoiceAsync(Booking booking, DateTime expiryDateTime);
+
+        /// <summary>
         /// Retrieves invoice status from Xendit
         /// </summary>
         /// <param name="invoiceId">Xendit invoice ID</param>

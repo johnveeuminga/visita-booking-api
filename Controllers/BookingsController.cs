@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using visita_booking_api.Models.DTOs;
 using visita_booking_api.Services.Interfaces;
+using visita_booking_api.Models.Entities;
 
 namespace visita_booking_api.Controllers
 {
@@ -122,6 +123,42 @@ namespace visita_booking_api.Controllers
             {
                 _logger.LogError(ex, "Error getting booking by reference {Reference}", reference);
                 return StatusCode(500, new { message = "An error occurred while retrieving the booking" });
+            }
+        }
+
+        /// <summary>
+        /// Get all bookings with pagination (Admin only)
+        /// </summary>
+        /// <param name="pageNumber">Page number (1-based)</param>
+        /// <param name="pageSize">Number of items per page</param>
+        /// <param name="status">Filter by booking status (optional)</param>
+        /// <param name="paymentStatus">Filter by payment status (optional)</param>
+        /// <returns>Paginated list of all bookings</returns>
+        [HttpGet]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> GetAllBookings(
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 20,
+            [FromQuery] BookingStatus? status = null,
+            [FromQuery] PaymentStatus? paymentStatus = null)
+        {
+            try
+            {
+                var searchRequest = new BookingSearchRequestDto
+                {
+                    Status = status,
+                    PaymentStatus = paymentStatus,
+                    PageNumber = pageNumber,
+                    PageSize = Math.Min(pageSize, 100) // Cap at 100 items per page
+                };
+
+                var results = await _bookingService.SearchBookingsAsync(searchRequest, null); // null userId for admin
+                return Ok(results);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting all bookings");
+                return StatusCode(500, new { message = "An error occurred while retrieving bookings" });
             }
         }
 

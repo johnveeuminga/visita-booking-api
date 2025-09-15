@@ -53,11 +53,13 @@ namespace visita_booking_api.Services.Implementation
         {
             var stopwatch = Stopwatch.StartNew();
             var searchId = Guid.NewGuid().ToString("N")[..8];
+
+
             
             try
             {
-                _logger.LogInformation("Starting optimized room search {SearchId} for {Guests} guests from {CheckIn} to {CheckOut}", 
-                    searchId, searchRequest.Guests, searchRequest.CheckInDate, searchRequest.CheckOutDate);
+                _logger.LogInformation("Starting optimized room search {SearchId} for {Guests} guests from {CheckIn} to {CheckOut} with accommodation filter {AccommodationId}", 
+                    searchId, searchRequest.Guests, searchRequest.CheckInDate, searchRequest.CheckOutDate, searchRequest.AccommodationId.HasValue ? searchRequest.AccommodationId.Value.ToString() : "None");
 
                 // Generate cache key for this search
                 var cacheKey = GenerateSearchCacheKey(searchRequest);
@@ -122,6 +124,12 @@ namespace visita_booking_api.Services.Implementation
                 if (searchRequest.Guests > 0)
                 {
                     filteredQuery = filteredQuery.Where(r => r.MaxGuests >= searchRequest.Guests);
+                }
+
+                // PRIORITY FILTER: Filter by accommodation ID to dramatically reduce search scope
+                if (searchRequest.AccommodationId.HasValue)
+                {
+                    filteredQuery = filteredQuery.Where(r => r.AccommodationId == searchRequest.AccommodationId.Value);
                 }
 
                 // Amenity filters

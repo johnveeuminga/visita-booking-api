@@ -85,10 +85,6 @@ namespace visita_booking_api.Models.Entities
         [StringLength(1000)]
         public string? SpecialRequests { get; set; }
 
-        // Concurrency Control
-        [Timestamp]
-        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
-
         // Audit Fields
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

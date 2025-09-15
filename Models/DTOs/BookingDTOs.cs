@@ -108,6 +108,12 @@ namespace visita_booking_api.Models.DTOs
         
         // Room details
         public RoomSummaryDto? Room { get; set; }
+        
+        // Accommodation details
+        public AccommodationSummaryDto? Accommodation { get; set; }
+        
+        // Additional fees breakdown
+        public List<BookingFeeDto> AdditionalFees { get; set; } = new();
     }
 
     public class BookingReservationDto
@@ -324,9 +330,86 @@ namespace visita_booking_api.Models.DTOs
         public int NumberOfNights { get; set; }
         public decimal TotalAmount { get; set; }
         public BookingStatus Status { get; set; }
+        public string StatusDescription { get; set; } = string.Empty;
         public PaymentStatus PaymentStatus { get; set; }
+        public string PaymentStatusDescription { get; set; } = string.Empty;
         public string GuestName { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
+        
+        // Accommodation info
+        public AccommodationSummaryDto? Accommodation { get; set; }
+    }
+
+    public class BookingFeeDto
+    {
+        public string FeeType { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public bool IsPercentage { get; set; }
+        public decimal? PercentageRate { get; set; }
+    }
+
+    #endregion
+
+    #region Accommodation Booking DTOs
+
+    public class AccommodationBookingSearchDto
+    {
+        public List<int> RoomIds { get; set; } = new();
+        public BookingStatus? Status { get; set; }
+        public PaymentStatus? PaymentStatus { get; set; }
+        public DateTime? CheckInDateFrom { get; set; }
+        public DateTime? CheckInDateTo { get; set; }
+        
+        [Range(1, 100)]
+        public int PageSize { get; set; } = 20;
+
+        [Range(1, int.MaxValue)]
+        public int PageNumber { get; set; } = 1;
+    }
+
+    public class AccommodationBookingDto
+    {
+        public int Id { get; set; }
+        public string BookingReference { get; set; } = string.Empty;
+        public int RoomId { get; set; }
+        public string RoomName { get; set; } = string.Empty;
+        public DateTime CheckInDate { get; set; }
+        public DateTime CheckOutDate { get; set; }
+        public int NumberOfGuests { get; set; }
+        public int NumberOfNights { get; set; }
+        public decimal BaseAmount { get; set; }
+        public decimal TaxAmount { get; set; }
+        public decimal ServiceFee { get; set; }
+        public decimal TotalAmount { get; set; }
+        public BookingStatus Status { get; set; }
+        public PaymentStatus PaymentStatus { get; set; }
+        public string GuestName { get; set; } = string.Empty;
+        public string GuestEmail { get; set; } = string.Empty;
+        public string? GuestPhone { get; set; }
+        public string? SpecialRequests { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+        public DateTime? ActualCheckInAt { get; set; }
+        public DateTime? ActualCheckOutAt { get; set; }
+    }
+
+    public class AccommodationCheckInDto
+    {
+        public int BookingId { get; set; }
+        public string BookingReference { get; set; } = string.Empty;
+        public string GuestName { get; set; } = string.Empty;
+        public string GuestEmail { get; set; } = string.Empty;
+        public string? GuestPhone { get; set; }
+        public DateTime CheckInDate { get; set; }
+        public DateTime CheckOutDate { get; set; }
+        public int NumberOfGuests { get; set; }
+        public int NumberOfNights { get; set; }
+        public int RoomId { get; set; }
+        public string RoomName { get; set; } = string.Empty;
+        public BookingStatus Status { get; set; }
+        public string? SpecialRequests { get; set; }
+        public DateTime? ActualCheckInAt { get; set; }
     }
 
     #endregion

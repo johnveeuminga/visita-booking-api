@@ -17,17 +17,20 @@ namespace visita_booking_api.Controllers
         private readonly ILogger<RoomsController> _logger;
         private readonly ApplicationDbContext _context;
         private readonly IS3FileService _s3FileService;
+        private readonly IBookingService _bookingService;
 
         public RoomsController(
             IRoomService roomService, 
             ILogger<RoomsController> logger,
             ApplicationDbContext context,
-            IS3FileService s3FileService)
+            IS3FileService s3FileService,
+            IBookingService bookingService)
         {
             _roomService = roomService;
             _logger = logger;
             _context = context;
             _s3FileService = s3FileService;
+            _bookingService = bookingService;
         }
 
         /// <summary>
@@ -72,6 +75,83 @@ namespace visita_booking_api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error retrieving room {RoomId}", id);
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
+        /// Check room availability for specific dates and get pricing details
+        /// </summary>
+        /// <param name="id">Room ID</param>
+        /// <param name="checkInDate">Check-in date</param>
+        /// <param name="checkOutDate">Check-out date</param>
+        /// <param name="numberOfGuests">Number of guests (optional, defaults to 1)</param>
+        /// <returns>Availability status with pricing information</returns>
+        [HttpGet("{id}/available")]
+        [AllowAnonymous]
+        public async Task<ActionResult<BookingAvailabilityResponseDto>> CheckRoomAvailability(
+            int id,
+            [FromQuery] DateTime checkInDate,
+            [FromQuery] DateTime checkOutDate,
+            [FromQuery] int numberOfGuests = 1)
+        {
+            try
+            {
+                if (id <= 0)
+                {
+                    return BadRequest("Invalid room ID");
+                }
+
+                // Validate dates
+                if (checkInDate >= checkOutDate)
+                {
+                    return BadRequest("Check-out date must be after check-in date");
+                }
+
+                if (checkInDate.Date < DateTime.Now.Date)
+                {
+                    return BadRequest("Check-in date cannot be in the past");
+                }
+
+                if (numberOfGuests < 1 || numberOfGuests > 20)
+                {
+                    return BadRequest("Number of guests must be between 1 and 20");
+                }
+
+                // Verify room exists
+                var room = await _context.Rooms
+                    .Where(r => r.Id == id && r.IsActive)
+                    .FirstOrDefaultAsync();
+
+                if (room == null)
+                {
+                    return NotFound($"Room with ID {id} not found or inactive");
+                }
+
+                // Check if room can accommodate the number of guests
+                if (numberOfGuests > room.MaxGuests)
+                {
+                    return BadRequest($"Room can only accommodate up to {room.MaxGuests} guests");
+                }
+
+                // Create availability request
+                var availabilityRequest = new BookingAvailabilityRequestDto
+                {
+                    RoomId = id,
+                    CheckInDate = checkInDate.Date,
+                    CheckOutDate = checkOutDate.Date,
+                    NumberOfGuests = numberOfGuests
+                };
+
+                // Check availability using the existing booking service
+                var availability = await _bookingService.CheckAvailabilityAsync(availabilityRequest);
+
+                return Ok(availability);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking availability for room {RoomId} from {CheckIn} to {CheckOut}", 
+                    id, checkInDate, checkOutDate);
                 return StatusCode(500, "Internal server error");
             }
         }

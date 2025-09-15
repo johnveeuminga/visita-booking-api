@@ -113,10 +113,6 @@ namespace visita_booking_api.Models.Entities
         [Column(TypeName = "json")]
         public string? ProviderMetadata { get; set; }
 
-        // Concurrency Control
-        [Timestamp]
-        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
-
         // Navigation Properties
         [ForeignKey(nameof(BookingId))]
         public virtual Booking Booking { get; set; } = null!;

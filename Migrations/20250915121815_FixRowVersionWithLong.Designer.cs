@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VisitaBookingApi.Data;
 
@@ -10,9 +11,11 @@ using VisitaBookingApi.Data;
 namespace visita_booking_api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250915121815_FixRowVersionWithLong")]
+    partial class FixRowVersionWithLong
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -375,7 +378,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 1,
                             Icon = "ac-unit",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(718),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(5906),
                             Name = "Air Conditioning"
                         },
                         new
@@ -387,7 +390,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 2,
                             Icon = "whatshot",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1663),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6807),
                             Name = "Heating"
                         },
                         new
@@ -399,7 +402,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 3,
                             Icon = "deck",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1667),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6811),
                             Name = "Balcony"
                         },
                         new
@@ -411,7 +414,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 4,
                             Icon = "location-city",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1669),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6813),
                             Name = "City View"
                         },
                         new
@@ -423,7 +426,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 5,
                             Icon = "waves",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1670),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6815),
                             Name = "Ocean View"
                         },
                         new
@@ -435,7 +438,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 1,
                             Icon = "wifi",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1676),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6821),
                             Name = "Free WiFi"
                         },
                         new
@@ -447,7 +450,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 2,
                             Icon = "tv",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1678),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6823),
                             Name = "Smart TV"
                         },
                         new
@@ -459,7 +462,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 3,
                             Icon = "usb",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1679),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6825),
                             Name = "USB Charging Ports"
                         },
                         new
@@ -471,7 +474,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 4,
                             Icon = "speaker",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1680),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6826),
                             Name = "Bluetooth Speaker"
                         },
                         new
@@ -483,7 +486,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 1,
                             Icon = "bathroom",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1683),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6829),
                             Name = "Private Bathroom"
                         },
                         new
@@ -495,7 +498,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 2,
                             Icon = "shower",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1684),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6830),
                             Name = "Shower"
                         },
                         new
@@ -507,7 +510,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 3,
                             Icon = "bathtub",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1685),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6832),
                             Name = "Bathtub"
                         },
                         new
@@ -519,7 +522,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 4,
                             Icon = "dry",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1686),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6833),
                             Name = "Hair Dryer"
                         },
                         new
@@ -531,7 +534,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 5,
                             Icon = "soap",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1688),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6835),
                             Name = "Toiletries"
                         },
                         new
@@ -543,7 +546,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 1,
                             Icon = "kitchen",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1689),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6836),
                             Name = "Mini Fridge"
                         },
                         new
@@ -555,7 +558,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 2,
                             Icon = "coffee-maker",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1690),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6838),
                             Name = "Coffee Maker"
                         },
                         new
@@ -567,7 +570,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 3,
                             Icon = "microwave",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1691),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6839),
                             Name = "Microwave"
                         },
                         new
@@ -579,7 +582,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 1,
                             Icon = "gpp-good",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1693),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6841),
                             Name = "Safe"
                         },
                         new
@@ -591,7 +594,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 2,
                             Icon = "smoke-free",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1695),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6843),
                             Name = "Smoke Detector"
                         },
                         new
@@ -603,7 +606,7 @@ namespace visita_booking_api.Migrations
                             DisplayOrder = 3,
                             Icon = "medical-services",
                             IsActive = true,
-                            LastModified = new DateTime(2025, 9, 15, 12, 26, 59, 809, DateTimeKind.Utc).AddTicks(1712),
+                            LastModified = new DateTime(2025, 9, 15, 12, 18, 15, 115, DateTimeKind.Utc).AddTicks(6844),
                             Name = "First Aid Kit"
                         });
                 });
@@ -678,6 +681,11 @@ namespace visita_booking_api.Migrations
 
                     b.Property<int>("RoomId")
                         .HasColumnType("int");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint");
 
                     b.Property<decimal>("ServiceFee")
                         .HasPrecision(12, 2)
@@ -907,6 +915,11 @@ namespace visita_booking_api.Migrations
                     b.Property<int?>("RefundedFromPaymentId")
                         .HasColumnType("int");
 
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -1008,6 +1021,11 @@ namespace visita_booking_api.Migrations
 
                     b.Property<int>("RoomId")
                         .HasColumnType("int");
+
+                    b.Property<long>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");

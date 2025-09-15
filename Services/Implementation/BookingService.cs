@@ -20,6 +20,7 @@ namespace visita_booking_api.Services.Implementation
         private readonly BookingConfiguration _config;
         private readonly ILogger<BookingService> _logger;
         private readonly IDistributedLockService _distributedLock;
+        private readonly ITimezoneService _timezoneService;
 
         public BookingService(
             ApplicationDbContext context,
@@ -28,7 +29,8 @@ namespace visita_booking_api.Services.Implementation
             IMemoryCache cache,
             IOptions<BookingConfiguration> config,
             ILogger<BookingService> logger,
-            IDistributedLockService distributedLock)
+            IDistributedLockService distributedLock,
+            ITimezoneService timezoneService)
         {
             _context = context;
             _xenditService = xenditService;
@@ -37,6 +39,7 @@ namespace visita_booking_api.Services.Implementation
             _config = config.Value;
             _logger = logger;
             _distributedLock = distributedLock;
+            _timezoneService = timezoneService;
         }
 
         public async Task<BookingAvailabilityResponseDto> CheckAvailabilityAsync(BookingAvailabilityRequestDto request)
@@ -44,7 +47,7 @@ namespace visita_booking_api.Services.Implementation
             try
             {
                 // Validate dates
-                if (request.CheckInDate < DateTime.Today)
+                if (request.CheckInDate < _timezoneService.Today)
                 {
                     return new BookingAvailabilityResponseDto
                     {
@@ -186,8 +189,11 @@ namespace visita_booking_api.Services.Implementation
                 _context.Bookings.Add(booking);
                 await _context.SaveChangesAsync();
 
-                // Create reservation
+                // Create reservation with GMT+8 timezone
                 var reservationReference = $"RES-{bookingReference}";
+                var currentGmtPlus8 = _timezoneService.Now;
+                var expiryTime = currentGmtPlus8.AddMinutes(request.ReservationTimeoutMinutes ?? _config.DefaultReservationTimeoutMinutes);
+                
                 var reservation = new BookingReservation
                 {
                     ReservationReference = reservationReference,
@@ -199,15 +205,16 @@ namespace visita_booking_api.Services.Implementation
                     NumberOfGuests = request.NumberOfGuests,
                     TotalAmount = pricing.TotalAmount,
                     Status = ReservationStatus.Active,
-                    ExpiresAt = DateTime.UtcNow.AddMinutes(request.ReservationTimeoutMinutes ?? _config.DefaultReservationTimeoutMinutes)
+                    ExpiresAt = _timezoneService.ConvertToUtc(expiryTime)
                 };
 
                 _context.BookingReservations.Add(reservation);
                 await _context.SaveChangesAsync();
 
-                // Create Xendit invoice
-                var invoiceResult = await _xenditService.CreateInvoiceAsync(booking, 
-                    request.ReservationTimeoutMinutes ?? _config.DefaultReservationTimeoutMinutes);
+                // Create Xendit invoice with exact same expiry as reservation
+                var invoiceResult = await _xenditService.CreateInvoiceAsync(booking, reservation.ExpiresAt);
+
+                Console.WriteLine("Invoice REsult: " + invoiceResult.PaymentUrl);
 
                 if (invoiceResult.IsSuccess)
                 {
@@ -263,7 +270,7 @@ namespace visita_booking_api.Services.Implementation
                 // Update booking status
                 booking.Status = BookingStatus.Confirmed;
                 booking.PaymentStatus = PaymentStatus.Paid;
-                booking.UpdatedAt = DateTime.UtcNow;
+                booking.UpdatedAt = GetCurrentUtcTime();
 
                 // Update reservation status
                 if (booking.Reservation != null)
@@ -419,6 +426,7 @@ namespace visita_booking_api.Services.Implementation
             var booking = await _context.Bookings
                 .Include(b => b.Room).ThenInclude(r => r.Photos)
                 .Include(b => b.Room).ThenInclude(r => r.RoomAmenities).ThenInclude(ra => ra.Amenity)
+                .Include(b => b.Room).ThenInclude(r => r.Accommodation)
                 .Include(b => b.User)
                 .Include(b => b.Reservation)
                 .Include(b => b.Payments)
@@ -439,6 +447,7 @@ namespace visita_booking_api.Services.Implementation
             var booking = await _context.Bookings
                 .Include(b => b.Room).ThenInclude(r => r.Photos)
                 .Include(b => b.Room).ThenInclude(r => r.RoomAmenities).ThenInclude(ra => ra.Amenity)
+                .Include(b => b.Room).ThenInclude(r => r.Accommodation)
                 .Include(b => b.User)
                 .Include(b => b.Reservation)
                 .Include(b => b.Payments)
@@ -457,7 +466,7 @@ namespace visita_booking_api.Services.Implementation
         public async Task<PagedResult<BookingSummaryDto>> SearchBookingsAsync(BookingSearchRequestDto request, int? userId = null)
         {
             var query = _context.Bookings
-                .Include(b => b.Room)
+                .Include(b => b.Room).ThenInclude(r => r.Accommodation)
                 .AsQueryable();
 
             // Apply user filter for non-admin users
@@ -509,29 +518,42 @@ namespace visita_booking_api.Services.Implementation
                     : query.OrderBy(b => b.CreatedAt)
             };
 
-            // Apply pagination
+            // Apply pagination and execute query
             var bookings = await query
                 .Skip((request.PageNumber - 1) * request.PageSize)
                 .Take(request.PageSize)
-                .Select(b => new BookingSummaryDto
-                {
-                    Id = b.Id,
-                    BookingReference = b.BookingReference,
-                    RoomName = b.Room.Name,
-                    CheckInDate = b.CheckInDate,
-                    CheckOutDate = b.CheckOutDate,
-                    NumberOfNights = b.NumberOfNights,
-                    TotalAmount = b.TotalAmount,
-                    Status = b.Status,
-                    PaymentStatus = b.PaymentStatus,
-                    GuestName = b.GuestName,
-                    CreatedAt = b.CreatedAt
-                })
                 .ToListAsync();
+
+            // Map to DTOs with status descriptions and accommodation data
+            var bookingDtos = bookings.Select(b => new BookingSummaryDto
+            {
+                Id = b.Id,
+                BookingReference = b.BookingReference,
+                RoomName = b.Room?.Name ?? "",
+                CheckInDate = b.CheckInDate,
+                CheckOutDate = b.CheckOutDate,
+                NumberOfNights = b.NumberOfNights,
+                TotalAmount = b.TotalAmount,
+                Status = b.Status,
+                StatusDescription = GetBookingStatusDescription(b.Status),
+                PaymentStatus = b.PaymentStatus,
+                PaymentStatusDescription = GetPaymentStatusDescription(b.PaymentStatus),
+                GuestName = b.GuestName,
+                CreatedAt = b.CreatedAt,
+                Accommodation = b.Room?.Accommodation != null ? new AccommodationSummaryDto
+                {
+                    Id = b.Room.Accommodation.Id,
+                    Name = b.Room.Accommodation.Name,
+                    Description = b.Room.Accommodation.Description,
+                    Logo = b.Room.Accommodation.Logo,
+                    IsActive = b.Room.Accommodation.IsActive,
+                    ActiveRoomCount = 0 // Not needed for booking summary
+                } : null
+            }).ToList();
 
             return new PagedResult<BookingSummaryDto>
             {
-                Items = bookings,
+                Items = bookingDtos,
                 TotalCount = totalCount,
                 PageNumber = request.PageNumber,
                 PageSize = request.PageSize
@@ -742,29 +764,39 @@ namespace visita_booking_api.Services.Implementation
         public async Task<List<BookingSummaryDto>> GetUpcomingBookingsAsync(int userId)
         {
             var upcomingBookings = await _context.Bookings
-                .Include(b => b.Room)
+                .Include(b => b.Room).ThenInclude(r => r.Accommodation)
                 .Where(b => b.UserId == userId 
-                    && b.CheckInDate >= DateTime.Today 
+                    && b.CheckInDate >= _timezoneService.Today 
                     && b.Status != BookingStatus.Cancelled)
                 .OrderBy(b => b.CheckInDate)
                 .Take(10)
-                .Select(b => new BookingSummaryDto
-                {
-                    Id = b.Id,
-                    BookingReference = b.BookingReference,
-                    RoomName = b.Room.Name,
-                    CheckInDate = b.CheckInDate,
-                    CheckOutDate = b.CheckOutDate,
-                    NumberOfNights = b.NumberOfNights,
-                    TotalAmount = b.TotalAmount,
-                    Status = b.Status,
-                    PaymentStatus = b.PaymentStatus,
-                    GuestName = b.GuestName,
-                    CreatedAt = b.CreatedAt
-                })
                 .ToListAsync();
 
-            return upcomingBookings;
+            return upcomingBookings.Select(b => new BookingSummaryDto
+            {
+                Id = b.Id,
+                BookingReference = b.BookingReference,
+                RoomName = b.Room?.Name ?? "",
+                CheckInDate = b.CheckInDate,
+                CheckOutDate = b.CheckOutDate,
+                NumberOfNights = b.NumberOfNights,
+                TotalAmount = b.TotalAmount,
+                Status = b.Status,
+                StatusDescription = GetBookingStatusDescription(b.Status),
+                PaymentStatus = b.PaymentStatus,
+                PaymentStatusDescription = GetPaymentStatusDescription(b.PaymentStatus),
+                GuestName = b.GuestName,
+                CreatedAt = b.CreatedAt,
+                Accommodation = b.Room?.Accommodation != null ? new AccommodationSummaryDto
+                {
+                    Id = b.Room.Accommodation.Id,
+                    Name = b.Room.Accommodation.Name,
+                    Description = b.Room.Accommodation.Description,
+                    Logo = b.Room.Accommodation.Logo,
+                    IsActive = b.Room.Accommodation.IsActive,
+                    ActiveRoomCount = 0
+                } : null
+            }).ToList();
         }
 
         public async Task<int> CleanupExpiredReservationsAsync()
@@ -1134,6 +1166,7 @@ namespace visita_booking_api.Services.Implementation
                 booking = await _context.Bookings
                     .Include(b => b.Room).ThenInclude(r => r.Photos)
                     .Include(b => b.Room).ThenInclude(r => r.RoomAmenities).ThenInclude(ra => ra.Amenity)
+                    .Include(b => b.Room).ThenInclude(r => r.Accommodation)
                     .Include(b => b.User)
                     .Include(b => b.Reservation)
                     .Include(b => b.Payments)
@@ -1177,6 +1210,15 @@ namespace visita_booking_api.Services.Implementation
                     MaxGuests = booking.Room.MaxGuests,
                     MainPhotoUrl = booking.Room.MainPhotoUrl,
                     Amenities = booking.Room.Amenities.Select(a => a.Name).ToList()
+                } : null,
+                Accommodation = booking.Room?.Accommodation != null ? new AccommodationSummaryDto
+                {
+                    Id = booking.Room.Accommodation.Id,
+                    Name = booking.Room.Accommodation.Name,
+                    Description = booking.Room.Accommodation.Description,
+                    Logo = booking.Room.Accommodation.Logo,
+                    IsActive = booking.Room.Accommodation.IsActive,
+                    ActiveRoomCount = 0 // Not needed for booking response
                 } : null
             };
         }
@@ -1221,6 +1263,42 @@ namespace visita_booking_api.Services.Implementation
                 PaymentDescription = payment.PaymentDescription
             };
         }
+        
+        private static string GetBookingStatusDescription(BookingStatus status)
+        {
+            return status switch
+            {
+                BookingStatus.Reserved => "Reserved",
+                BookingStatus.Confirmed => "Confirmed",
+                BookingStatus.CheckedIn => "Checked In",
+                BookingStatus.CheckedOut => "Checked Out",
+                BookingStatus.Cancelled => "Cancelled",
+                BookingStatus.NoShow => "No Show",
+                _ => "Unknown"
+            };
+        }
+        
+        private static string GetPaymentStatusDescription(PaymentStatus status)
+        {
+            return status switch
+            {
+                PaymentStatus.Pending => "Pending",
+                PaymentStatus.Processing => "Processing",
+                PaymentStatus.Paid => "Paid",
+                PaymentStatus.Failed => "Failed",
+                PaymentStatus.Refunded => "Refunded",
+                PaymentStatus.PartialRefund => "Partially Refunded",
+                _ => "Unknown"
+            };
+        }
+        
+        /// <summary>
+        /// Gets the current GMT+8 time and converts it to UTC for database storage
+        /// </summary>
+        private DateTime GetCurrentUtcTime()
+        {
+            return _timezoneService.ConvertToUtc(_timezoneService.Now);
+        }
 
         #endregion
     }
@@ -1231,7 +1309,7 @@ namespace visita_booking_api.Services.Implementation
         public int MaxReservationExtensions { get; set; } = 2;
         public int ReservationExtensionMinutes { get; set; } = 15;
         public decimal TaxRate { get; set; } = 0.10m; // 10%
-        public decimal ServiceFeeRate { get; set; } = 0.05m; // 5%
+        public decimal ServiceFeeRate { get; set; } = 0.07m; // 7%
         public bool AllowSameDayBooking { get; set; } = true;
         public int MaxAdvanceBookingDays { get; set; } = 365;
         public bool RequirePaymentForReservation { get; set; } = true;

@@ -23,28 +23,35 @@ namespace visita_booking_api.Services.Implementation
             _config = config.Value;
             _logger = logger;
 
-            // Configure HttpClient
+            // Configure HttpClient with improved settings
             _httpClient.BaseAddress = new Uri(_config.BaseUrl);
             _httpClient.DefaultRequestHeaders.Authorization = 
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Basic",
                     Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_config.ApiKey}:")));
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "VisitaBookingAPI/1.0");
+            _httpClient.Timeout = TimeSpan.FromSeconds(30);
         }
 
         public async Task<XenditInvoiceResult> CreateInvoiceAsync(Booking booking, int expiryMinutes = 30)
         {
+            var expiryDateTime = DateTime.UtcNow.AddMinutes(expiryMinutes);
+            return await CreateInvoiceAsync(booking, expiryDateTime);
+        }
+
+        public async Task<XenditInvoiceResult> CreateInvoiceAsync(Booking booking, DateTime expiryDateTime)
+        {
             try
             {
                 var externalId = $"booking-{booking.BookingReference}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
-                var expiryDate = DateTime.UtcNow.AddMinutes(expiryMinutes);
+                var totalSecondsUntilExpiry = (int)(expiryDateTime - DateTime.UtcNow).TotalSeconds;
 
                 var invoiceRequest = new
                 {
                     external_id = externalId,
                     amount = booking.TotalAmount,
                     description = $"Booking Payment for {booking.Room?.Name ?? "Room"} - {booking.BookingReference}",
-                    invoice_duration = expiryMinutes * 60, // Convert to seconds
-                    currency = "USD", // TODO: Make configurable
+                    invoice_duration = Math.Max(60, totalSecondsUntilExpiry), // Minimum 1 minute
+                    currency = "PHP", // TODO: Make configurable
                     reminder_time = 1, // 1 hour before expiry
                     customer = new
                     {
@@ -73,8 +80,15 @@ namespace visita_booking_api.Services.Implementation
                     }
                 };
 
-                var json = JsonSerializer.Serialize(invoiceRequest);
+                var json = JsonSerializer.Serialize(invoiceRequest, new JsonSerializerOptions 
+                { 
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+                    WriteIndented = true
+                });
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                _logger.LogInformation("Creating Xendit invoice for booking {BookingReference} with amount {Amount}", 
+                    booking.BookingReference, booking.TotalAmount);
 
                 var response = await _httpClient.PostAsync("/v2/invoices", content);
                 var responseContent = await response.Content.ReadAsStringAsync();
@@ -83,40 +97,61 @@ namespace visita_booking_api.Services.Implementation
                 {
                     var invoiceResponse = JsonSerializer.Deserialize<JsonElement>(responseContent);
                     
-                    return new XenditInvoiceResult
+                    var result = new XenditInvoiceResult
                     {
                         IsSuccess = true,
                         InvoiceId = invoiceResponse.GetProperty("id").GetString(),
                         PaymentUrl = invoiceResponse.GetProperty("invoice_url").GetString(),
                         ExternalId = externalId,
-                        ExpiryDate = expiryDate,
+                        ExpiryDate = expiryDateTime,
                         Amount = booking.TotalAmount,
                         Currency = "USD",
                         Status = invoiceResponse.GetProperty("status").GetString() ?? "",
                         RawResponse = JsonSerializer.Deserialize<Dictionary<string, object>>(responseContent) ?? new()
                     };
+
+                    _logger.LogInformation("Successfully created Xendit invoice {InvoiceId} for booking {BookingReference}",
+                        result.InvoiceId, booking.BookingReference);
+
+                    return result;
                 }
                 else
                 {
-                    _logger.LogError("Failed to create Xendit invoice. Status: {StatusCode}, Response: {Response}",
-                        response.StatusCode, responseContent);
+                    _logger.LogError("Failed to create Xendit invoice for booking {BookingReference}. Status: {StatusCode}, Response: {Response}",
+                        booking.BookingReference, response.StatusCode, responseContent);
 
                     return new XenditInvoiceResult
                     {
                         IsSuccess = false,
-                        ErrorMessage = $"Failed to create invoice: {response.StatusCode}"
+                        ErrorMessage = $"Failed to create invoice: {response.StatusCode} - {responseContent}"
                     };
                 }
             }
-            catch (Exception ex)
+            catch (HttpRequestException httpEx)
             {
-                _logger.LogError(ex, "Exception occurred while creating Xendit invoice for booking {BookingId}",
-                    booking.Id);
-
+                _logger.LogError(httpEx, "HTTP error occurred while creating Xendit invoice for booking {BookingId}", booking.Id);
                 return new XenditInvoiceResult
                 {
                     IsSuccess = false,
-                    ErrorMessage = ex.Message
+                    ErrorMessage = $"Network error: {httpEx.Message}"
+                };
+            }
+            catch (JsonException jsonEx)
+            {
+                _logger.LogError(jsonEx, "JSON parsing error while creating Xendit invoice for booking {BookingId}", booking.Id);
+                return new XenditInvoiceResult
+                {
+                    IsSuccess = false,
+                    ErrorMessage = $"Response parsing error: {jsonEx.Message}"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error occurred while creating Xendit invoice for booking {BookingId}", booking.Id);
+                return new XenditInvoiceResult
+                {
+                    IsSuccess = false,
+                    ErrorMessage = $"Unexpected error: {ex.Message}"
                 };
             }
         }
