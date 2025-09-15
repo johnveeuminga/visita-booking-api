@@ -100,14 +100,14 @@ namespace VisitaBookingApi.Services
                     };
                 }
 
-                // Validate role
-                var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == request.Role);
+                // Always assign Guest role for new registrations
+                var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Guest");
                 if (role == null)
                 {
                     return new AuthResponse
                     {
                         Success = false,
-                        Message = "Invalid role specified."
+                        Message = "Guest role not found. Please ensure roles are properly configured."
                     };
                 }
 
@@ -523,6 +523,86 @@ namespace VisitaBookingApi.Services
                 CreatedAt = user.CreatedAt,
                 LastLoginAt = user.LastLoginAt
             };
+        }
+
+        public async Task<ApiResponse<bool>> AssignRoleAsync(AssignRoleRequest request)
+        {
+            try
+            {
+                // Validate that the user exists
+                var user = await _context.Users
+                    .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                    .FirstOrDefaultAsync(u => u.Id == request.UserId);
+                
+                if (user == null)
+                {
+                    return new ApiResponse<bool>
+                    {
+                        Success = false,
+                        Message = "User not found.",
+                        Data = false
+                    };
+                }
+
+                // Validate that the new role exists
+                var newRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == request.NewRole);
+                if (newRole == null)
+                {
+                    return new ApiResponse<bool>
+                    {
+                        Success = false,
+                        Message = "Invalid role specified.",
+                        Data = false
+                    };
+                }
+
+                // Check if user already has this role
+                var existingUserRole = user.UserRoles.FirstOrDefault(ur => ur.Role.Name == request.NewRole);
+                if (existingUserRole != null)
+                {
+                    return new ApiResponse<bool>
+                    {
+                        Success = false,
+                        Message = $"User already has the {request.NewRole} role.",
+                        Data = false
+                    };
+                }
+
+                // Remove all existing roles (users should only have one role at a time)
+                var rolesToRemove = user.UserRoles.ToList();
+                _context.UserRoles.RemoveRange(rolesToRemove);
+
+                // Assign the new role
+                var userRole = new UserRole
+                {
+                    UserId = user.Id,
+                    RoleId = newRole.Id,
+                    AssignedAt = DateTime.UtcNow
+                };
+
+                _context.UserRoles.Add(userRole);
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Role {NewRole} assigned to user {UserId} by admin", request.NewRole, request.UserId);
+
+                return new ApiResponse<bool>
+                {
+                    Success = true,
+                    Message = $"Successfully assigned {request.NewRole} role to user.",
+                    Data = true
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error assigning role {Role} to user {UserId}", request.NewRole, request.UserId);
+                return new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "An error occurred while assigning the role.",
+                    Data = false
+                };
+            }
         }
 
         #endregion

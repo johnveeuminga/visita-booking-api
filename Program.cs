@@ -47,7 +47,6 @@ builder.Services.AddCors(options =>
     // More restrictive policy for production
     options.AddPolicy("Production", policy =>
     {
-        Console.WriteLine("Applying production CORS policy with origins: ", productionOrigins);
         policy.WithOrigins(productionOrigins)
             .AllowAnyMethod()
             .AllowAnyHeader()
@@ -90,6 +89,12 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
+    var corsConfig = builder.Configuration.GetSection("CORS");
+    foreach (var origin in corsConfig.GetSection("ProductionOrigins").Get<string[]>() ?? Array.Empty<string>())
+    {
+        Console.WriteLine($"Allowed Production CORS Origin: {origin}");
+    }
+
     app.UseCors("Production");
 }
 

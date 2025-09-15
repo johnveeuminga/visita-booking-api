@@ -37,12 +37,6 @@ namespace VisitaBookingApi.Models.DTOs
         [Required]
         [MaxLength(255)]
         public string LastName { get; set; } = string.Empty;
-
-        /// <summary>
-        /// Role to assign (Guest, Hotel, Admin). Defaults to Guest.
-        /// Admin role assignment might require special authorization.
-        /// </summary>
-        public string Role { get; set; } = "Guest";
     }
 
     public class GoogleAuthRequest
@@ -119,5 +113,15 @@ namespace VisitaBookingApi.Models.DTOs
         public string Message { get; set; } = string.Empty;
         public T? Data { get; set; }
         public List<string> Errors { get; set; } = new();
+    }
+
+    public class AssignRoleRequest
+    {
+        [Required]
+        public int UserId { get; set; }
+
+        [Required]
+        [MaxLength(50)]
+        public string NewRole { get; set; } = string.Empty;
     }
 }
