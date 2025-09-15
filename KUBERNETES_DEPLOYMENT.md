@@ -18,7 +18,7 @@ This guide explains how to deploy the Visita Booking API to Kubernetes using the
 # Copy the deployment template
 cp k8s-deployment.template.yaml k8s-deployment.yaml
 
-# Copy AWS credentials templates  
+# Copy AWS credentials templates
 cp aws-credentials.template aws-credentials
 cp aws-config.template aws-config
 ```
@@ -28,27 +28,33 @@ cp aws-config.template aws-config
 Edit `k8s-deployment.yaml` and replace these placeholders:
 
 #### Database Configuration
+
 - `REPLACE_WITH_YOUR_DATABASE_CONNECTION_STRING`
   ```
   Server=your-db-server;Database=visita_booking;User Id=username;Password=password;
   ```
 
 #### JWT Configuration
+
 - `REPLACE_WITH_YOUR_JWT_SECRET_KEY` - A secure random string (256-bit recommended)
 
 #### Xendit Payment Configuration
+
 - `REPLACE_WITH_YOUR_XENDIT_SECRET_KEY`
 - `REPLACE_WITH_YOUR_XENDIT_WEBHOOK_TOKEN`
 
 #### AWS Configuration
+
 - `REPLACE_WITH_YOUR_S3_BUCKET_NAME`
 
 #### SSL Certificate
+
 - `REPLACE_WITH_YOUR_SSL_CERTIFICATE_ARN` - Your AWS ACM certificate ARN
 
 ### 3. Configure AWS Credentials
 
 Edit `aws-credentials`:
+
 ```ini
 [default]
 aws_access_key_id = YOUR_ACTUAL_ACCESS_KEY
@@ -115,13 +121,13 @@ curl http://localhost:8080/api/auth/health
 
 ### Environment Variables
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `ASPNETCORE_ENVIRONMENT` | Application environment | `Production` |
-| `ConnectionStrings__DefaultConnection` | Database connection | `Server=...` |
-| `JWT__SecretKey` | JWT signing key | `your-secret-key` |
-| `Xendit__SecretKey` | Xendit API key | `xnd_development_...` |
-| `AWS_S3_BUCKET` | S3 bucket name | `visita-assets` |
+| Variable                               | Description             | Example               |
+| -------------------------------------- | ----------------------- | --------------------- |
+| `ASPNETCORE_ENVIRONMENT`               | Application environment | `Production`          |
+| `ConnectionStrings__DefaultConnection` | Database connection     | `Server=...`          |
+| `JWT__SecretKey`                       | JWT signing key         | `your-secret-key`     |
+| `Xendit__SecretKey`                    | Xendit API key          | `xnd_development_...` |
+| `AWS_S3_BUCKET`                        | S3 bucket name          | `visita-assets`       |
 
 ### Resource Limits
 
@@ -152,24 +158,28 @@ curl http://localhost:8080/api/auth/health
 ## Troubleshooting
 
 ### Pod Not Starting
+
 ```bash
 kubectl describe pod <pod-name>
 kubectl logs <pod-name>
 ```
 
 ### Service Not Accessible
+
 ```bash
 kubectl get endpoints
 kubectl describe service visita-booking-api-service
 ```
 
 ### Ingress Issues
+
 ```bash
 kubectl describe ingress visita-booking-api-ingress
 kubectl get events --sort-by='.metadata.creationTimestamp'
 ```
 
 ### ECR Image Pull Issues
+
 ```bash
 # Refresh ECR token (expires every 12 hours)
 TOKEN=$(aws ecr get-login-password --region ap-southeast-1)
@@ -184,6 +194,7 @@ kubectl create secret docker-registry ecr-registry-secret \
 ## Monitoring and Scaling
 
 ### Horizontal Pod Autoscaler
+
 ```yaml
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -197,15 +208,16 @@ spec:
   minReplicas: 2
   maxReplicas: 10
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
 ```
 
 ### Update Deployment
+
 ```bash
 # Update image tag
 kubectl set image deployment/visita-booking-api visita-booking-api=766670502987.dkr.ecr.ap-southeast-1.amazonaws.com/visita-booking-api:v1.2.3
