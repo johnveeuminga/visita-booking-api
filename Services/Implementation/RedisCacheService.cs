@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Caching.Distributed;
-using StackExchange.Redis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using visita_booking_api.Services.Interfaces;
@@ -9,8 +8,6 @@ namespace visita_booking_api.Services.Implementation
     public class RedisCacheService : ICacheService
     {
         private readonly IDistributedCache _distributedCache;
-        private readonly IConnectionMultiplexer _redis;
-        private readonly IDatabase _database;
         private readonly ILogger<RedisCacheService> _logger;
         private readonly IConfiguration _configuration;
         private readonly string _keyPrefix;
@@ -23,13 +20,10 @@ namespace visita_booking_api.Services.Implementation
 
         public RedisCacheService(
             IDistributedCache distributedCache,
-            IConnectionMultiplexer redis,
             ILogger<RedisCacheService> logger,
             IConfiguration configuration)
         {
             _distributedCache = distributedCache;
-            _redis = redis ?? throw new ArgumentNullException(nameof(redis));
-            _database = _redis.GetDatabase();
             _logger = logger;
             _configuration = configuration;
             _keyPrefix = _configuration["Caching:Redis:KeyPrefix"] ?? "visita:";
@@ -102,15 +96,10 @@ namespace visita_booking_api.Services.Implementation
         {
             try
             {
-                var server = _redis.GetServer(_redis.GetEndPoints().First());
-                var fullPattern = $"{_keyPrefix}{pattern}";
-                
-                await foreach (var key in server.KeysAsync(pattern: fullPattern))
-                {
-                    await _database.KeyDeleteAsync(key);
-                }
-                
-                _logger.LogDebug("Removed cached values matching pattern: {Pattern}", pattern);
+                // Note: Pattern-based deletion is not supported with IDistributedCache for Upstash Redis HTTP REST
+                // This is a limitation when using only IDistributedCache
+                _logger.LogWarning("Pattern-based cache removal is not supported with IDistributedCache for Upstash Redis. Pattern: {Pattern}", pattern);
+                await Task.CompletedTask;
             }
             catch (Exception ex)
             {
@@ -123,7 +112,8 @@ namespace visita_booking_api.Services.Implementation
             try
             {
                 var fullKey = $"{_keyPrefix}{key}";
-                return await _database.KeyExistsAsync(fullKey);
+                var value = await _distributedCache.GetStringAsync(fullKey);
+                return value != null;
             }
             catch (Exception ex)
             {

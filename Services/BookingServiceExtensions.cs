@@ -16,16 +16,8 @@ namespace visita_booking_api.Services
         /// <returns>Service collection for chaining</returns>
         public static IServiceCollection AddBookingServices(this IServiceCollection services)
         {
-            // Register Redis connection for distributed locking
-            services.AddSingleton<IConnectionMultiplexer>(serviceProvider =>
-            {
-                var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-                var connectionString = configuration.GetConnectionString("RedisConnection") ?? "localhost:6379";
-                return ConnectionMultiplexer.Connect(connectionString);
-            });
-
-            // Register distributed lock service
-            services.AddScoped<IDistributedLockService, RedisDistributedLockService>();
+            // Register simplified distributed lock service (no ConnectionMultiplexer needed)
+            services.AddScoped<IDistributedLockService, SimpleDistributedLockService>();
 
             // Register Xendit service with HttpClient
             services.AddHttpClient<IXenditService, XenditService>()
