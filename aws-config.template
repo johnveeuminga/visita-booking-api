@@ -1,0 +1,11 @@
+[default]
+region = ap-southeast-1
+output = json
+
+[profile production]
+region = ap-southeast-1
+output = json
+
+[profile staging]
+region = ap-southeast-1
+output = json

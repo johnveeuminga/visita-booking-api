@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using System.Transactions;
 using System.Text.Json;
@@ -16,7 +15,6 @@ namespace visita_booking_api.Services.Implementation
         private readonly ApplicationDbContext _context;
         private readonly IXenditService _xenditService;
         private readonly IRoomCalendarService _roomCalendarService;
-        private readonly IMemoryCache _cache;
         private readonly BookingConfiguration _config;
         private readonly ILogger<BookingService> _logger;
         private readonly IDistributedLockService _distributedLock;
@@ -26,7 +24,6 @@ namespace visita_booking_api.Services.Implementation
             ApplicationDbContext context,
             IXenditService xenditService,
             IRoomCalendarService roomCalendarService,
-            IMemoryCache cache,
             IOptions<BookingConfiguration> config,
             ILogger<BookingService> logger,
             IDistributedLockService distributedLock,
@@ -35,7 +32,6 @@ namespace visita_booking_api.Services.Implementation
             _context = context;
             _xenditService = xenditService;
             _roomCalendarService = roomCalendarService;
-            _cache = cache;
             _config = config.Value;
             _logger = logger;
             _distributedLock = distributedLock;

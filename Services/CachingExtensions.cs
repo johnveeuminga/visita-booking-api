@@ -1,100 +1,49 @@
-using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.Caching.StackExchangeRedis;
 using StackExchange.Redis;
-using visita_booking_api.Services.Implementation;
 using visita_booking_api.Services.Interfaces;
+using visita_booking_api.Services.Implementation;
 
 namespace visita_booking_api.Services
 {
     public static class CachingExtensions
     {
-        public static IServiceCollection AddAppCaching(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddCachingServices(this IServiceCollection services, IConfiguration configuration)
         {
-            // Memory Cache
-            services.AddMemoryCache(options =>
+            // Add Redis Cache for Upstash (TCP connection)
+            var redisConnectionString = configuration.GetConnectionString("Redis") 
+                ?? throw new ArgumentNullException("Redis connection string is required");
+
+            Console.WriteLine($"Using Redis Cache at: {redisConnectionString}");
+            
+            services.AddStackExchangeRedisCache(options =>
             {
-                var maxSizeMB = configuration.GetValue<int>("Caching:MaxMemoryCacheSizeMB");
-                if (maxSizeMB > 0)
-                {
-                    options.SizeLimit = maxSizeMB * 1024 * 1024; // Convert MB to bytes
-                }
-                options.TrackStatistics = true;
+                options.Configuration = redisConnectionString;
+                options.InstanceName = "visita-booking-api";
             });
 
-            // Response Caching
-            var useResponseCaching = configuration.GetValue<bool>("Caching:UseResponseCaching");
-            if (useResponseCaching)
+            // Register Redis ConnectionMultiplexer for direct Redis operations (TCP)
+            services.AddSingleton<IConnectionMultiplexer>(provider =>
             {
-                services.AddResponseCaching();
-            }
+                var connectionString = configuration.GetConnectionString("Redis")!;
+                return ConnectionMultiplexer.Connect(connectionString);
+            });
 
-            // Redis Configuration
-            var useRedis = configuration.GetValue<bool>("Caching:UseRedis");
-            if (useRedis)
-            {
-                var redisConnection = configuration.GetConnectionString("RedisConnection");
-                if (!string.IsNullOrEmpty(redisConnection))
-                {
-                    // Configure Redis connection
-                    services.AddSingleton<IConnectionMultiplexer>(serviceProvider =>
-                    {
-                        var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
-                        try
-                        {
-                            var configuration = ConfigurationOptions.Parse(redisConnection);
-                            configuration.AbortOnConnectFail = false;
-                            configuration.ConnectRetry = 3;
-                            configuration.ConnectTimeout = 5000;
-                            configuration.SyncTimeout = 5000;
-                            
-                            return ConnectionMultiplexer.Connect(configuration);
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.LogError(ex, "Failed to connect to Redis. Continuing without Redis caching.");
-                            return null!;
-                        }
-                    });
-
-                    // Add Redis distributed cache
-                    services.AddStackExchangeRedisCache(options =>
-                    {
-                        options.Configuration = redisConnection;
-                        options.InstanceName = "VisitaBookingApi";
-                    });
-                }
-                else
-                {
-                    services.AddSingleton<IConnectionMultiplexer>(_ => null!);
-                    services.AddDistributedMemoryCache(); // Fallback to in-memory distributed cache
-                }
-            }
-            else
-            {
-                services.AddSingleton<IConnectionMultiplexer>(_ => null!);
-                services.AddDistributedMemoryCache(); // Use in-memory distributed cache
-            }
-
-            // Register cache services
-            services.AddScoped<ICacheService, HybridCacheService>();
+            // Register the Redis-only cache service
+            services.AddScoped<ICacheService, RedisCacheService>();
+            
+            // Register cache invalidation service
             services.AddScoped<ICacheInvalidationService, CacheInvalidationService>();
+            
+            // Register cache warmup service
             services.AddScoped<ICacheWarmupService, CacheWarmupService>();
 
-            // Add background service for cache warming
-            services.AddHostedService<CacheWarmupBackgroundService>();
+            // Add response caching for HTTP responses
+            services.AddResponseCaching(options =>
+            {
+                options.MaximumBodySize = 1024 * 1024; // 1MB
+                options.UseCaseSensitivePaths = true;
+            });
 
             return services;
-        }
-
-        public static IApplicationBuilder UseAppCaching(this IApplicationBuilder app, IConfiguration configuration)
-        {
-            var useResponseCaching = configuration.GetValue<bool>("Caching:UseResponseCaching");
-            if (useResponseCaching)
-            {
-                app.UseResponseCaching();
-            }
-
-            return app;
         }
     }
 }

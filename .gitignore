@@ -481,3 +481,18 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Kubernetes and AWS sensitive files
+k8s-deployment.yaml
+aws-credentials
+aws-config
+*.kubeconfig
+*.kube
+
+# Deployment secrets
+k8s-secrets.yaml
+secrets/
+
+# Generated SQL migration files
+sql-migrations/
+*.sql

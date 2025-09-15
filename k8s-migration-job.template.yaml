@@ -1,0 +1,107 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: visita-booking-migration
+  namespace: default
+  labels:
+    app: visita-booking-migration
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: visita-booking-migration
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migration
+          image: 766670502987.dkr.ecr.ap-southeast-1.amazonaws.com/visita-booking-api:latest
+          command: ["dotnet", "ef", "database", "update"]
+          env:
+            # Database Configuration
+            - name: ConnectionStrings__DefaultConnection
+              value: "REPLACE_WITH_YOUR_PROD_DATABASE_CONNECTION_STRING"
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+
+            # AWS Configuration (if needed for other services during migration)
+            - name: AWS_PROFILE
+              value: "default"
+            - name: AWS_REGION
+              value: "ap-southeast-1"
+
+            # Add other environment variables that might be needed during migration
+            - name: JWT__SecretKey
+              value: "REPLACE_WITH_YOUR_JWT_SECRET_KEY"
+
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          # Volume mounts for AWS credentials (if needed)
+          volumeMounts:
+            - name: aws-credentials
+              mountPath: /root/.aws
+              readOnly: true
+
+      volumes:
+        - name: aws-credentials
+          secret:
+            secretName: aws-credentials
+            defaultMode: 0400
+
+      # Image pull secrets for ECR
+      imagePullSecrets:
+        - name: ecr-registry-secret
+
+---
+# Optional: Migration status check job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: visita-booking-migration-check
+  namespace: default
+  labels:
+    app: visita-booking-migration-check
+spec:
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        app: visita-booking-migration-check
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migration-check
+          image: 766670502987.dkr.ecr.ap-southeast-1.amazonaws.com/visita-booking-api:latest
+          command: ["dotnet", "ef", "migrations", "list"]
+          env:
+            - name: ConnectionStrings__DefaultConnection
+              value: "REPLACE_WITH_YOUR_PROD_DATABASE_CONNECTION_STRING"
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+
+          volumeMounts:
+            - name: aws-credentials
+              mountPath: /root/.aws
+              readOnly: true
+
+      volumes:
+        - name: aws-credentials
+          secret:
+            secretName: aws-credentials
+
+      imagePullSecrets:
+        - name: ecr-registry-secret

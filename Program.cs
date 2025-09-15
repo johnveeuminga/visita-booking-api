@@ -58,7 +58,7 @@ builder.Services.AddAppDatabase(builder.Configuration);
 builder.Services.AddAppAuthentication(builder.Configuration);
 
 // Add caching services
-builder.Services.AddAppCaching(builder.Configuration);
+builder.Services.AddCachingServices(builder.Configuration);
 
 // Add AutoMapper
 builder.Services.AddAutoMapper(config => {
@@ -94,7 +94,7 @@ else
 // app.UseHttpsRedirection();
 
 // Use caching middleware
-app.UseAppCaching(builder.Configuration);
+app.UseResponseCaching();
 
 // Authentication must come before authorization
 app.UseAuthentication();
