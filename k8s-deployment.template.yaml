@@ -1,0 +1,208 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{APP_NAME}}
+  namespace: default
+  labels:
+    app: {{APP_NAME}}
+    version: latest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{APP_NAME}}
+  template:
+    metadata:
+      labels:
+        app: {{APP_NAME}}
+        version: latest
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: {{APP_NAME}}
+          image: {{ECR_REPOSITORY_URI}}:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            # Database Configuration
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ConnectionStrings__DefaultConnection
+              value: "{{MYSQL_CONNECTION_STRING}}"
+            - name: ConnectionStrings__RedisConnection
+              value: "{{REDIS_CONNECTION_STRING}}"
+
+            # JWT Configuration
+            - name: JWT__SecretKey
+              value: "{{JWT_SECRET_KEY}}"
+            - name: JWT__Issuer
+              value: "{{JWT_ISSUER}}"
+            - name: JWT__Audience
+              value: "{{JWT_AUDIENCE}}"
+            - name: JWT__ExpiryMinutes
+              value: "1440"
+
+            # Booking Configuration
+            - name: Booking__DefaultReservationTimeoutMinutes
+              value: "30"
+            - name: Booking__ServiceFeeRate
+              value: "0.07"
+            - name: Booking__TaxRate
+              value: "0.00"
+
+            # Redis Configuration (if using)
+            - name: Redis__ConnectionString
+              value: "{{REDIS_CONNECTION_STRING}}"
+
+            # Xendit Payment Configuration
+            - name: Xendit__SecretKey
+              value: "{{XENDIT_SECRET_KEY}}"
+            - name: Xendit__WebhookToken
+              value: "{{XENDIT_WEBHOOK_TOKEN}}"
+            - name: Xendit__BaseUrl
+              value: "https://api.xendit.co"
+
+            # CORS Configuration
+            - name: CORS__AllowedOrigins__0
+              value: "{{FRONTEND_DOMAIN_1}}"
+            - name: CORS__AllowedOrigins__1
+              value: "{{FRONTEND_DOMAIN_2}}"
+            - name: CORS__AllowedOrigins__2
+              value: "{{FRONTEND_DOMAIN_3}}"
+
+            # CORS Production Configuration
+            - name: CORS__ProductionOrigins__0
+              value: "{{FRONTEND_DOMAIN_1}}"
+            - name: CORS__ProductionOrigins__1
+              value: "{{FRONTEND_DOMAIN_2}}"
+            - name: CORS__ProductionOrigins__2
+              value: "{{FRONTEND_DOMAIN_3}}"
+
+            # AWS Configuration - using custom credential file paths
+            - name: AWS_CONFIG_FILE
+              value: "/app/aws/config"
+            - name: AWS_SHARED_CREDENTIALS_FILE
+              value: "/app/aws/credentials"
+            - name: AWS_PROFILE
+              value: "default"
+            - name: AWS_REGION
+              value: "{{AWS_REGION}}"
+            - name: AWS_S3_BUCKET
+              value: "{{S3_BUCKET_NAME}}"
+
+            # Logging Configuration
+            - name: Logging__LogLevel__Default
+              value: "Information"
+            - name: Logging__LogLevel__Microsoft.AspNetCore
+              value: "Warning"
+
+          # Health checks
+          livenessProbe:
+            httpGet:
+              path: /api/auth/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /api/auth/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # Volume mounts for AWS credentials
+          volumeMounts:
+            - name: aws-credentials
+              mountPath: /app/aws
+              readOnly: true
+              readOnly: false
+
+          # Security context
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+      
+      # Pod-level security context to ensure proper file ownership
+      securityContext:
+        fsGroup: 1000
+
+      # Volumes
+      volumes:
+        - name: aws-credentials
+          secret:
+            secretName: aws-credentials
+            defaultMode: 0644
+            items:
+              - key: credentials
+                path: credentials
+                mode: 0644
+              - key: config
+                path: config
+                mode: 0644
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{APP_NAME}}-service
+  namespace: default
+  labels:
+    app: {{APP_NAME}}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: {{APP_NAME}}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{APP_NAME}}-ingress
+  annotations:
+    cert-manager.io/issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/proxy-body-size: "128M"
+    # Keep WebSocket connections alive longer for SignalR
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # Enable cookie-based sticky sessions so negotiate and websocket requests
+    # from the same client hit the same backend pod (important when running
+    # multiple replicas without a SignalR backplane).
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "route"
+    nginx.ingress.kubernetes.io/session-cookie-hash: "sha1"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - {{API_DOMAIN}}
+      secretName: {{APP_NAME}}-secret
+  rules:
+    - host: {{API_DOMAIN}}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{APP_NAME}}-service
+                port:
+                  number: 80
