@@ -839,14 +839,7 @@ namespace visita_booking_api.Services
                     var reservationsCount = roomReservations.Where(r => d >= r.CheckInDate.Date && d < r.CheckOutDate.Date).Sum(r => r.Quantity);
                     var locksCount = roomLocks.Where(l => d >= l.CheckInDate.Date && d < l.CheckOutDate.Date).Sum(l => l.Quantity);
 
-                    // Debug logging to help diagnose unexpected blocking
-                    var dbgOvExists = roomOverrides.TryGetValue(d, out var dbgOv);
-                    var dbgOvAvailable = dbgOvExists ? dbgOv?.AvailableCount : (int?)null;
-                    var dbgOvIsAvailable = dbgOvExists ? dbgOv?.IsAvailable : (bool?)null;
-
-                    _logger.LogDebug("[DEBUG] Room {RoomId} date {Date} effectiveInventory={EffectiveInventory} consumed={Consumed} (bookings={B}, reservations={R}, locks={L}) overrideAvailable={OverrideAvailable} overrideIsAvailable={OverrideIsAvailable}",
-                        room.Id, d.ToString("yyyy-MM-dd"), effectiveInventory, used, bookingsCount, reservationsCount, locksCount,
-                        dbgOvAvailable.HasValue ? dbgOvAvailable.Value.ToString() : "(none)", dbgOvIsAvailable.HasValue ? dbgOvIsAvailable.Value.ToString() : "(none)");
+                    // (debug logging removed here; search service will surface availability maps)
 
                     if (used >= effectiveInventory)
                     {

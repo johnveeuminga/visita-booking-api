@@ -23,7 +23,7 @@ namespace visita_booking_api.Services
             services.AddScoped<IAmenityService, SimpleAmenityService>();
             services.AddScoped<IS3FileService, SimpleS3FileService>();
             services.AddScoped<IAvailabilityLedgerService, AvailabilityLedgerService>();
-            services.AddScoped<visita_booking_api.Services.Interfaces.IEmailService, visita_booking_api.Services.Implementation.SendGridEmailService>();
+            services.AddScoped<IEmailService, SendGridEmailService>();
 
             
             // Development data seeding service

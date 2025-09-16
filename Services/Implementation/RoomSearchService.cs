@@ -52,6 +52,18 @@ namespace visita_booking_api.Services.Implementation
             _suggestionsTTL = TimeSpan.FromHours(configuration.GetValue<int>("Caching:AmenitiesTTLHours", 1));
         }
 
+        // Debug helper to log availability maps
+        private void LogAvailabilityMaps(string searchId, Dictionary<int,int> ledgerMap, Dictionary<int,int>? calendarFallback = null)
+        {
+            try
+            {
+                var ledgerSummary = ledgerMap != null ? string.Join(", ", ledgerMap.Select(kv => kv.Key +":"+ kv.Value)) : "(none)";
+                var calSummary = calendarFallback != null ? string.Join(", ", calendarFallback.Select(kv => kv.Key +":"+ kv.Value)) : "(none)";
+                _logger.LogDebug("[AVAIL] search {SearchId} ledgerMap={Ledger} calendarFallback={Calendar}", searchId, ledgerSummary, calSummary);
+            }
+            catch { /* swallow logging errors */ }
+        }
+
         public async Task<RoomSearchResponseDTO> SearchRoomsAsync(RoomSearchRequestDTO searchRequest)
         {
             var stopwatch = Stopwatch.StartNew();
@@ -115,6 +127,9 @@ namespace visita_booking_api.Services.Implementation
                 // Try to get availability from ledger for candidates
                 var ledgerMap = await _ledgerService.TryGetMinAvailableFromLedgerAsync(candidateIds, searchRequest.CheckInDate, searchRequest.CheckOutDate);
 
+                // Debug: log ledger map
+                try { LogAvailabilityMaps(searchId, ledgerMap); } catch { }
+
                 // Rooms that ledger says have minAvailable <=0 are unavailable
                 var unavailableFromLedger = ledgerMap.Where(kv => kv.Value <= 0).Select(kv => kv.Key).ToList();
 
@@ -125,6 +140,7 @@ namespace visita_booking_api.Services.Implementation
                 {
                     // Let calendar compute min available units for missing rooms and mark those below requested quantity as unavailable
                     var fallback = await _calendarService.GetMinAvailableUnitsForRoomsAsync(missingLedgerIds, searchRequest.CheckInDate, searchRequest.CheckOutDate);
+                    try { LogAvailabilityMaps(searchId, ledgerMap, fallback); } catch { }
                     var requiredUnits = Math.Max(1, searchRequest.Quantity);
                     unavailableFromCalendar = fallback.Where(kv => kv.Value < requiredUnits).Select(kv => kv.Key).ToList();
                 }

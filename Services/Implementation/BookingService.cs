@@ -321,6 +321,24 @@ namespace visita_booking_api.Services.Implementation
 
                 _logger.LogInformation("Confirmed booking {BookingReference}", booking.BookingReference);
 
+                // Warmup ledger for the affected room for the next 6 months so ledger-backed searches pick up the change.
+                // Only perform warmup if this method created the transaction (caller is not managing transactions)
+                try
+                {
+                    if (createdTransaction != null && booking.RoomId > 0)
+                    {
+                        var start = booking.CheckInDate.Date;
+                        var end = start.AddMonths(6).Date; // end exclusive
+                        await _ledgerService.WarmupRoomLedgerAsync(booking.RoomId, start, end);
+                        // Also invalidate availability cache pattern so consumers refresh immediately
+                        // Note: BookingService doesn't have ICacheInvalidationService, we rely on callers (e.g., SQS handler) to invalidate.
+                    }
+                }
+                catch (Exception lex)
+                {
+                    _logger.LogWarning(lex, "Failed to warmup ledger after confirming booking {BookingRef}", booking.BookingReference);
+                }
+
                 // Send booking confirmation email (best-effort)
                 try
                 {

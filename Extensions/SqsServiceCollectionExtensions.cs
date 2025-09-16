@@ -20,12 +20,13 @@ namespace visita_booking_api.Extensions
             var awsSection = configuration.GetSection("AWS");
             var region = awsSection.GetValue<string>("Region") ?? "ap-southeast-1";
 
-            // Use default AWS credentials chain (Env, Shared config, EC2/ECS role)
+            // Use default AWS credentials chain (Env, Shared config, EC2/ECS role).
+            // Prefer leaving credential resolution to the SDK so it uses the existing credentials file or environment.
             services.AddSingleton<IAmazonSQS>(sp =>
             {
-                var creds = FallbackCredentialsFactory.GetCredentials();
                 var config = new AmazonSQSConfig { RegionEndpoint = RegionEndpoint.GetBySystemName(region) };
-                return new AmazonSQSClient(creds, config);
+                // AmazonSQSClient will use the default credentials resolver when no explicit AWSCredentials are provided.
+                return new AmazonSQSClient(config);
             });
 
             // Hosted service will be added by consumer
