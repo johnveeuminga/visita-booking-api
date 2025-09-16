@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using visita_booking_api.Services.Interfaces;
 
 namespace visita_booking_api.Controllers
@@ -28,6 +29,20 @@ namespace visita_booking_api.Controllers
             if (end <= start) return BadRequest("end must be after start");
             var ok = await _ledgerService.WarmupRoomLedgerAsync(roomId, start, end);
             return ok ? Ok() : NotFound();
+        }
+
+        /// <summary>
+        /// Backfill ledger for all rooms for the next 6 months. Admin only.
+        /// </summary>
+        [HttpPost("backfill-six-months")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> BackfillSixMonths()
+        {
+            var start = DateTime.UtcNow.Date;
+            var end = start.AddMonths(6);
+
+            var processed = await _ledgerService.GenerateLedgerAsync(start, end);
+            return Ok(new { processedRooms = processed, start, end });
         }
     }
 }
