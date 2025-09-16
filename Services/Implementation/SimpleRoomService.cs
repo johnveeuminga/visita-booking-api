@@ -197,6 +197,9 @@ namespace visita_booking_api.Services.Implementation
 
                 if (room == null) return null;
 
+                // Preserve previous inventory count to detect changes
+                var previousTotalUnits = room.TotalUnits;
+
                 // Update room properties
                 _mapper.Map(updateDto, room);
                 room.UpdateTimestamp();
@@ -294,6 +297,23 @@ namespace visita_booking_api.Services.Implementation
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
+
+                // If the TotalUnits (room type count) changed, regenerate the ledger for the next 6 months
+                try
+                {
+                    if (room.TotalUnits != previousTotalUnits)
+                    {
+                        var start = DateTime.UtcNow.Date;
+                        var endExclusive = start.AddMonths(6);
+                        _logger.LogInformation("TotalUnits changed for room {RoomId} from {Old} to {New}. Regenerating ledger {Start} - {End}", roomId, previousTotalUnits, room.TotalUnits, start, endExclusive);
+                        await _ledgerService.WarmupRoomLedgerAsync(roomId, start, endExclusive);
+                        await _cacheInvalidation.InvalidateAvailabilityCacheAsync(roomId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to regenerate ledger after TotalUnits change for room {RoomId}", roomId);
+                }
 
                 // Return updated room details
                 return await GetByIdAsync(roomId);

@@ -20,6 +20,7 @@ namespace visita_booking_api.Services.Implementation
         private readonly ILogger<BookingService> _logger;
         private readonly IDistributedLockService _distributedLock;
         private readonly ITimezoneService _timezoneService;
+    private readonly visita_booking_api.Services.Interfaces.IEmailService _emailService;
 
         public BookingService(
             ApplicationDbContext context,
@@ -29,7 +30,8 @@ namespace visita_booking_api.Services.Implementation
             IOptions<BookingConfiguration> config,
             ILogger<BookingService> logger,
             IDistributedLockService distributedLock,
-            ITimezoneService timezoneService)
+            ITimezoneService timezoneService,
+            visita_booking_api.Services.Interfaces.IEmailService emailService)
         {
             _context = context;
             _xenditService = xenditService;
@@ -39,6 +41,7 @@ namespace visita_booking_api.Services.Implementation
             _logger = logger;
             _distributedLock = distributedLock;
             _timezoneService = timezoneService;
+            _emailService = emailService;
         }
 
         public async Task<BookingAvailabilityResponseDto> CheckAvailabilityAsync(BookingAvailabilityRequestDto request)
@@ -258,6 +261,8 @@ namespace visita_booking_api.Services.Implementation
                 var booking = await _context.Bookings
                     .Include(b => b.Reservation)
                     .Include(b => b.Payments)
+                    .Include(b => b.Room)
+                        .ThenInclude(r => r.Accommodation)
                     .FirstOrDefaultAsync(b => b.Id == bookingId);
 
                 if (booking == null)
@@ -286,6 +291,16 @@ namespace visita_booking_api.Services.Implementation
                 await transaction.CommitAsync();
 
                 _logger.LogInformation("Confirmed booking {BookingReference}", booking.BookingReference);
+
+                // Send booking confirmation email (best-effort)
+                try
+                {
+                    await _emailService.SendBookingConfirmationAsync(booking, booking.BaseAmount, booking.ServiceFee);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send booking confirmation email for booking {BookingId}", booking.Id);
+                }
 
                 return await MapToBookingResponseAsync(booking);
             }
