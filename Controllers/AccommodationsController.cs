@@ -41,6 +41,7 @@ namespace visita_booking_api.Controllers
                     Description = a.Description,
                     Logo = a.Logo,
                     IsActive = a.IsActive,
+                    Status = a.Status.ToString(),
                     ActiveRoomCount = a.Rooms.Count(r => r.IsActive)
                 })
                 .OrderBy(a => a.Name)
@@ -73,6 +74,10 @@ namespace visita_booking_api.Controllers
                 Description = accommodation.Description,
                 Logo = accommodation.Logo,
                 IsActive = accommodation.IsActive,
+                Status = accommodation.Status.ToString(),
+                ApprovedAt = accommodation.ApprovedAt,
+                ApprovedById = accommodation.ApprovedById,
+                RejectionReason = accommodation.RejectionReason,
                 CreatedAt = accommodation.CreatedAt,
                 UpdatedAt = accommodation.UpdatedAt,
                 OwnerId = accommodation.OwnerId,
@@ -80,6 +85,20 @@ namespace visita_booking_api.Controllers
                 OwnerEmail = accommodation.Owner?.Email ?? "Unknown",
                 ActiveRoomCount = accommodation.Rooms.Count(r => r.IsActive)
             };
+
+            // Generate presigned URLs for private business documents (short lived)
+            var presignExpiration = TimeSpan.FromMinutes(15);
+            if (!string.IsNullOrEmpty(accommodation.BusinessPermitS3Key))
+            {
+                response.BusinessPermitUrl = await _s3FileService.GetPresignedUrlAsync(accommodation.BusinessPermitS3Key, presignExpiration);
+            }
+
+            if (!string.IsNullOrEmpty(accommodation.DotAccreditationS3Key))
+            {
+                response.DotAccreditationUrl = await _s3FileService.GetPresignedUrlAsync(accommodation.DotAccreditationS3Key, presignExpiration);
+            }
+
+            // BTC membership is a boolean flag and not a document
 
             return Ok(response);
         }
@@ -100,24 +119,45 @@ namespace visita_booking_api.Controllers
                 .Include(a => a.Owner)
                 .Include(a => a.Rooms)
                 .Where(a => a.OwnerId == currentUserId.Value)
-                .Select(a => new AccommodationResponseDto
+                .ToListAsync();
+
+            var presignExpiration = TimeSpan.FromMinutes(15);
+            var results = new List<AccommodationResponseDto>();
+
+            foreach (var a in accommodations.OrderBy(a => a.Name))
+            {
+                var dto = new AccommodationResponseDto
                 {
                     Id = a.Id,
                     Name = a.Name,
                     Description = a.Description,
                     Logo = a.Logo,
                     IsActive = a.IsActive,
+                    Status = a.Status.ToString(),
                     CreatedAt = a.CreatedAt,
                     UpdatedAt = a.UpdatedAt,
                     OwnerId = a.OwnerId,
                     OwnerName = a.Owner!.FullName,
                     OwnerEmail = a.Owner.Email,
                     ActiveRoomCount = a.Rooms.Count(r => r.IsActive)
-                })
-                .OrderBy(a => a.Name)
-                .ToListAsync();
+                };
 
-            return Ok(accommodations);
+                if (!string.IsNullOrEmpty(a.BusinessPermitS3Key))
+                {
+                    dto.BusinessPermitUrl = await _s3FileService.GetPresignedUrlAsync(a.BusinessPermitS3Key, presignExpiration);
+                }
+
+                if (!string.IsNullOrEmpty(a.DotAccreditationS3Key))
+                {
+                    dto.DotAccreditationUrl = await _s3FileService.GetPresignedUrlAsync(a.DotAccreditationS3Key, presignExpiration);
+                }
+
+                // BTC membership is a boolean flag and not a document
+
+                results.Add(dto);
+            }
+
+            return Ok(results);
         }
 
         /// <summary>
@@ -155,7 +195,7 @@ namespace visita_booking_api.Controllers
             var accommodation = new Accommodation
             {
                 Name = request.Name,
-                Description = request.Description,
+                Description = request.Description ?? string.Empty,
                 Logo = logoUrl,
                 OwnerId = currentUserId.Value,
                 IsActive = true,
@@ -187,6 +227,83 @@ namespace visita_booking_api.Controllers
             };
 
             return CreatedAtAction(nameof(GetAccommodation), new { id = accommodation.Id }, response);
+        }
+
+        /// <summary>
+        /// Upload a private business document (owner or admin)
+        /// </summary>
+        [HttpPost("{id}/documents/{docType}")]
+        public async Task<IActionResult> UploadBusinessDocument(int id, string docType, IFormFile file)
+        {
+            var accommodation = await _context.Accommodations.FindAsync(id);
+            if (accommodation == null) return NotFound("Accommodation not found");
+
+            if (!CanModifyAccommodation(accommodation)) return Forbid();
+
+            if (file == null || file.Length == 0) return BadRequest("No file provided");
+
+            string folder = $"accommodations/{id}/documents";
+            var uploadResult = await _s3FileService.UploadPrivateFileAsync(file, folder);
+            if (!uploadResult.Success)
+            {
+                return BadRequest(new { Message = "Upload failed", Error = uploadResult.Error });
+            }
+
+            // Save S3 key to appropriate field
+            var s3Key = uploadResult.S3Key;
+            switch (docType.ToLower())
+            {
+                case "business-permit":
+                    accommodation.BusinessPermitS3Key = s3Key;
+                    break;
+                case "dot-accreditation":
+                    accommodation.DotAccreditationS3Key = s3Key;
+                    break;
+                default:
+                    return BadRequest("Unknown document type");
+            }
+
+            accommodation.UpdateTimestamp();
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Success = true, S3Key = s3Key });
+        }
+
+        /// <summary>
+        /// Delete a private business document (owner or admin)
+        /// </summary>
+        [HttpDelete("{id}/documents/{docType}")]
+        public async Task<IActionResult> DeleteBusinessDocument(int id, string docType)
+        {
+            var accommodation = await _context.Accommodations.FindAsync(id);
+            if (accommodation == null) return NotFound("Accommodation not found");
+
+            if (!CanModifyAccommodation(accommodation)) return Forbid();
+
+            string? currentKey = null;
+            switch (docType.ToLower())
+            {
+                case "business-permit":
+                    currentKey = accommodation.BusinessPermitS3Key;
+                    accommodation.BusinessPermitS3Key = null;
+                    break;
+                case "dot-accreditation":
+                    currentKey = accommodation.DotAccreditationS3Key;
+                    accommodation.DotAccreditationS3Key = null;
+                    break;
+                default:
+                    return BadRequest("Unknown document type");
+            }
+
+            if (!string.IsNullOrEmpty(currentKey))
+            {
+                await _s3FileService.DeleteFileAsync(currentKey);
+            }
+
+            accommodation.UpdateTimestamp();
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
 
         /// <summary>
@@ -248,7 +365,17 @@ namespace visita_booking_api.Controllers
             accommodation.Name = request.Name;
             accommodation.Description = request.Description ?? string.Empty;
             accommodation.Logo = logoUrl;
-            accommodation.Logo = logoUrl;
+
+            // Only admins may change BTC membership flag
+            if (request.IsBtcMember.HasValue)
+            {
+                if (!IsAdmin())
+                {
+                    return Forbid("Only admins can change BTC membership status");
+                }
+                accommodation.IsBtcMember = request.IsBtcMember.Value;
+            }
+
             accommodation.UpdateTimestamp();
 
             await _context.SaveChangesAsync();
@@ -389,5 +516,7 @@ namespace visita_booking_api.Controllers
         }
 
         #endregion
+
+        
     }
 }

@@ -29,6 +29,9 @@ namespace visita_booking_api.Models.DTOs
         
         [StringLength(500)]
         public string? Logo { get; set; }
+        
+        // BTC membership is a boolean flag; only admins may change this via the update endpoint
+        public bool? IsBtcMember { get; set; }
     }
 
     #endregion
@@ -42,6 +45,15 @@ namespace visita_booking_api.Models.DTOs
         public string? Description { get; set; }
         public string? Logo { get; set; }
         public bool IsActive { get; set; }
+        // Approval/status fields
+        public string Status { get; set; } = "Pending";
+        public DateTime? ApprovedAt { get; set; }
+        public int? ApprovedById { get; set; }
+        public string? RejectionReason { get; set; }
+
+    // Business document pre-signed URLs (generated per-request)
+    public string? BusinessPermitUrl { get; set; }
+    public string? DotAccreditationUrl { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public int OwnerId { get; set; }
@@ -57,6 +69,7 @@ namespace visita_booking_api.Models.DTOs
         public string? Description { get; set; }
         public string? Logo { get; set; }
         public bool IsActive { get; set; }
+        public string Status { get; set; } = "Pending";
         public int ActiveRoomCount { get; set; }
     }
 

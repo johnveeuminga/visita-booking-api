@@ -167,7 +167,9 @@ namespace visita_booking_api.Services.Implementation
             List<int>? excludedRoomIds,
             List<int> unavailableRoomIds)
         {
-            var query = _context.Accommodations.Where(a => a.IsActive);
+            // Only include accommodations that are approved. Relying on Status ensures Pending/Rejected/Suspended
+            // accommodations are excluded from public searches even if IsActive is inconsistent.
+            var query = _context.Accommodations.Where(a => a.Status == Models.Enums.AccommodationStatus.Approved);
 
             // Only include accommodations that have at least one available room that meets criteria
             query = query.Where(a => a.Rooms.Any(r => 
@@ -735,7 +737,7 @@ namespace visita_booking_api.Services.Implementation
                 var normalizedTerm = searchTerm.ToLower().Trim();
 
                 var results = await _context.Accommodations
-                    .Where(a => a.IsActive && 
+                    .Where(a => a.Status == Models.Enums.AccommodationStatus.Approved &&
                                (a.Name.ToLower().Contains(normalizedTerm) || 
                                 (a.Description != null && a.Description.ToLower().Contains(normalizedTerm))))
                     .Select(a => new AccommodationQuickSearchResultDTO
@@ -789,7 +791,7 @@ namespace visita_booking_api.Services.Implementation
                 
                 // Get matching accommodation names
                 var accommodationNames = await _context.Accommodations
-                    .Where(a => a.IsActive && a.Name.ToLower().Contains(searchTerm))
+                    .Where(a => a.Status == Models.Enums.AccommodationStatus.Approved && a.Name.ToLower().Contains(searchTerm))
                     .Select(a => a.Name)
                     .Distinct()
                     .Take(limit)
@@ -798,7 +800,7 @@ namespace visita_booking_api.Services.Implementation
 
                 // Get popular amenities for matching accommodations
                 var popularAmenities = await _context.Accommodations
-                    .Where(a => a.IsActive && a.Name.ToLower().Contains(searchTerm))
+                    .Where(a => a.Status == Models.Enums.AccommodationStatus.Approved && a.Name.ToLower().Contains(searchTerm))
                     .SelectMany(a => a.Rooms)
                     .Where(r => r.IsActive)
                     .SelectMany(r => r.RoomAmenities)
@@ -810,7 +812,7 @@ namespace visita_booking_api.Services.Implementation
 
                 // Get popular price ranges (simplified)
                 var popularPrices = await _context.Accommodations
-                    .Where(a => a.IsActive && a.Name.ToLower().Contains(searchTerm))
+                    .Where(a => a.Status == Models.Enums.AccommodationStatus.Approved && a.Name.ToLower().Contains(searchTerm))
                     .SelectMany(a => a.Rooms)
                     .Where(r => r.IsActive)
                     .Select(r => r.DefaultPrice)

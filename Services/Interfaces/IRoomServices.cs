@@ -53,6 +53,7 @@ namespace visita_booking_api.Services.Interfaces
     public interface IS3FileService
     {
         Task<FileUploadResponse> UploadFileAsync(IFormFile file, string folder);
+        Task<FileUploadResponse> UploadPrivateFileAsync(IFormFile file, string folder);
         Task<bool> DeleteFileAsync(string s3Key);
         Task<string> GetPresignedUrlAsync(string s3Key, TimeSpan expiration);
         Task<List<FileUploadResponse>> UploadMultipleFilesAsync(List<IFormFile> files, string folder);

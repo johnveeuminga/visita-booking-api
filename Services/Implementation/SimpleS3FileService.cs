@@ -105,6 +105,62 @@ namespace visita_booking_api.Services.Implementation
             }
         }
 
+        public async Task<FileUploadResponse> UploadPrivateFileAsync(IFormFile file, string folder)
+        {
+            try
+            {
+                if (file == null || file.Length == 0)
+                {
+                    return FileUploadResponse.CreateError("File is empty or null");
+                }
+
+                var bucketName = _configuration["AWS:S3:BucketName"];
+                if (string.IsNullOrEmpty(bucketName))
+                {
+                    return FileUploadResponse.CreateError("S3 bucket configuration is missing");
+                }
+
+                var fileExtension = Path.GetExtension(file.FileName);
+                var uniqueFileName = $"{Guid.NewGuid()}{fileExtension}";
+                var s3Key = $"{folder}/{uniqueFileName}";
+
+                var request = new PutObjectRequest
+                {
+                    BucketName = bucketName,
+                    Key = s3Key,
+                    InputStream = file.OpenReadStream(),
+                    ContentType = file.ContentType,
+                    CannedACL = S3CannedACL.Private,
+                    ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256,
+                    Metadata =
+                    {
+                        ["original-filename"] = file.FileName,
+                        ["upload-date"] = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC")
+                    }
+                };
+
+                var response = await _s3Client.PutObjectAsync(request);
+
+                if (response.HttpStatusCode == System.Net.HttpStatusCode.OK)
+                {
+                    _logger.LogInformation("Successfully uploaded private file {FileName} to S3: {S3Key}", file.FileName, s3Key);
+                    return FileUploadResponse.CreateSuccess(string.Empty, s3Key, file.FileName, file.Length, file.ContentType ?? "application/octet-stream");
+                }
+
+                return FileUploadResponse.CreateError($"S3 upload failed with status: {response.HttpStatusCode}");
+            }
+            catch (AmazonS3Exception s3Ex)
+            {
+                _logger.LogError(s3Ex, "S3 error uploading private file {FileName}: {ErrorCode} - {Message}", file?.FileName, s3Ex.ErrorCode, s3Ex.Message);
+                return FileUploadResponse.CreateError($"S3 error: {s3Ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error uploading private file {FileName}", file?.FileName);
+                return FileUploadResponse.CreateError($"Upload failed: {ex.Message}");
+            }
+        }
+
         public async Task<bool> DeleteFileAsync(string s3Key)
         {
             try
