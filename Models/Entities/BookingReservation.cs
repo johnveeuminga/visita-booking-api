@@ -22,7 +22,7 @@ namespace visita_booking_api.Models.Entities
         public int Id { get; set; }
 
         [Required]
-        [StringLength(20)]
+        [StringLength(255)]
         public string ReservationReference { get; set; } = string.Empty;
 
         // Foreign Keys

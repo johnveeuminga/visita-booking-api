@@ -42,7 +42,7 @@ namespace visita_booking_api.Services.Implementation
         {
             try
             {
-                var externalId = $"booking-{booking.BookingReference}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+                var externalId = $"{booking.BookingReference}";
                 var totalSecondsUntilExpiry = (int)(expiryDateTime - DateTime.UtcNow).TotalSeconds;
 
                 var invoiceRequest = new

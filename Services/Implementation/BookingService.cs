@@ -165,14 +165,36 @@ namespace visita_booking_api.Services.Implementation
                 // Calculate final pricing
                 var pricing = availability.PricingDetails!;
 
+                // Normalize incoming dates to UTC (assume dates are provided as local dates or unspecified)
+                var checkInUtc = request.CheckInDate;
+                var checkOutUtc = request.CheckOutDate;
+                if (checkInUtc.Kind == DateTimeKind.Unspecified)
+                {
+                    // Treat date-only values as UTC midnight
+                    checkInUtc = DateTime.SpecifyKind(checkInUtc.Date, DateTimeKind.Utc);
+                }
+                else if (checkInUtc.Kind == DateTimeKind.Local)
+                {
+                    checkInUtc = checkInUtc.ToUniversalTime();
+                }
+
+                if (checkOutUtc.Kind == DateTimeKind.Unspecified)
+                {
+                    checkOutUtc = DateTime.SpecifyKind(checkOutUtc.Date, DateTimeKind.Utc);
+                }
+                else if (checkOutUtc.Kind == DateTimeKind.Local)
+                {
+                    checkOutUtc = checkOutUtc.ToUniversalTime();
+                }
+
                 // Create booking
                 var booking = new Booking
                 {
                     BookingReference = bookingReference,
                     UserId = userId,
                     RoomId = request.RoomId,
-                    CheckInDate = request.CheckInDate,
-                    CheckOutDate = request.CheckOutDate,
+                    CheckInDate = checkInUtc,
+                    CheckOutDate = checkOutUtc,
                     NumberOfGuests = request.NumberOfGuests,
                     NumberOfNights = numberOfNights,
                     BaseAmount = pricing.BaseAmount,
@@ -193,21 +215,21 @@ namespace visita_booking_api.Services.Implementation
 
                 // Create reservation with GMT+8 timezone
                 var reservationReference = $"RES-{bookingReference}";
-                var currentGmtPlus8 = _timezoneService.Now;
-                var expiryTime = currentGmtPlus8.AddMinutes(request.ReservationTimeoutMinutes ?? _config.DefaultReservationTimeoutMinutes);
-                
+                // Compute expiry in UTC based on local timezone now
+
+                var expiryUtc = DateTime.UtcNow.AddMinutes(request.ReservationTimeoutMinutes ?? _config.DefaultReservationTimeoutMinutes);
                 var reservation = new BookingReservation
                 {
                     ReservationReference = reservationReference,
                     BookingId = booking.Id,
                     UserId = userId,
                     RoomId = request.RoomId,
-                    CheckInDate = request.CheckInDate,
-                    CheckOutDate = request.CheckOutDate,
+                    CheckInDate = checkInUtc,
+                    CheckOutDate = checkOutUtc,
                     NumberOfGuests = request.NumberOfGuests,
                     TotalAmount = pricing.TotalAmount,
                     Status = ReservationStatus.Active,
-                    ExpiresAt = _timezoneService.ConvertToUtc(expiryTime)
+                    ExpiresAt = expiryUtc
                 };
 
                 _context.BookingReservations.Add(reservation);
@@ -255,7 +277,10 @@ namespace visita_booking_api.Services.Implementation
 
         public async Task<BookingResponseDto> ConfirmBookingAsync(int bookingId, string paymentReference)
         {
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            // If a transaction already exists on the DbContext (caller started one), join it.
+            // Otherwise, create a new transaction for this operation.
+            var currentTransaction = _context.Database.CurrentTransaction;
+            var createdTransaction = currentTransaction == null ? await _context.Database.BeginTransactionAsync() : null;
             try
             {
                 var booking = await _context.Bookings
@@ -288,7 +313,11 @@ namespace visita_booking_api.Services.Implementation
                 await ReleaseAvailabilityLockAsync(booking.Id, "Booking confirmed");
 
                 await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
+
+                if (createdTransaction != null)
+                {
+                    await createdTransaction.CommitAsync();
+                }
 
                 _logger.LogInformation("Confirmed booking {BookingReference}", booking.BookingReference);
 
@@ -306,9 +335,20 @@ namespace visita_booking_api.Services.Implementation
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
+                if (createdTransaction != null)
+                {
+                    await createdTransaction.RollbackAsync();
+                }
+
                 _logger.LogError(ex, "Error confirming booking {BookingId}", bookingId);
                 throw;
+            }
+            finally
+            {
+                if (createdTransaction != null)
+                {
+                    await createdTransaction.DisposeAsync();
+                }
             }
         }
 
@@ -1100,7 +1140,7 @@ namespace visita_booking_api.Services.Implementation
             {
                 var timestamp = DateTimeOffset.UtcNow.ToString("yyMMdd");
                 var random = new Random().Next(1000, 9999);
-                bookingRef = $"VB-{timestamp}{random}";
+                bookingRef = $"VB-{timestamp}{random}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
 
                 exists = await _context.Bookings.AnyAsync(b => b.BookingReference == bookingRef);
             } 

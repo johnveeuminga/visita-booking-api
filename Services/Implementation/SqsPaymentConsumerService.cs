@@ -55,8 +55,97 @@ namespace visita_booking_api.Services.Implementation
 
                         try
                         {
-                            // Example: assume message body is JSON representing a payment event
-                            var paymentEvent = JsonSerializer.Deserialize<PaymentEventDto>(msg.Body);
+                            // Example: SQS may contain an SNS envelope where the actual payload is in the "Message" field.
+                            Console.WriteLine("Processing SQS message: " + msg.Body);
+
+                            string? innerJson = null;
+                            try
+                            {
+                                using var outerDoc = JsonDocument.Parse(msg.Body);
+                                if (outerDoc.RootElement.ValueKind == JsonValueKind.Object && outerDoc.RootElement.TryGetProperty("Message", out var inner))
+                                {
+                                    // SNS delivers Message as a JSON string (quoted). If so, extract the string value and
+                                    // parse it to get the real JSON payload. Otherwise, Message may already be an object.
+                                    if (inner.ValueKind == JsonValueKind.String)
+                                    {
+                                        var messageString = inner.GetString();
+                                        if (!string.IsNullOrEmpty(messageString))
+                                        {
+                                            // messageString is itself a JSON string; use it directly as the inner JSON
+                                            innerJson = messageString;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        innerJson = inner.GetRawText();
+                                    }
+                                }
+                            }
+                            catch (JsonException)
+                            {
+                                // not JSON or malformed; we'll fallback to raw body
+                            }
+
+                            Console.WriteLine("Inner JSON: " + (innerJson ?? msg.Body));
+
+                            var jsonToParse = innerJson ?? msg.Body;
+                            var jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                            var paymentEvent = JsonSerializer.Deserialize<PaymentEventDto>(jsonToParse, jsonOptions);
+
+                            // If some fields are missing from the inner JSON, try to fall back to MessageAttributes (SNS often includes metadata there)
+                            if (paymentEvent != null && (string.IsNullOrWhiteSpace(paymentEvent.Id) || string.IsNullOrWhiteSpace(paymentEvent.ExternalId) || string.IsNullOrWhiteSpace(paymentEvent.Status)))
+                            {
+                                try
+                                {
+                                    var attrMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                                    if (msg.MessageAttributes != null)
+                                    {
+                                        foreach (var kv in msg.MessageAttributes)
+                                        {
+                                            var key = kv.Key ?? string.Empty;
+                                            var normalized = key.Replace("_", string.Empty).Replace("-", string.Empty).ToLowerInvariant();
+
+                                            // Prefer StringValue when available, otherwise decode BinaryValue as UTF8
+                                            var value = kv.Value?.StringValue;
+                                            if (string.IsNullOrEmpty(value) && kv.Value?.BinaryValue != null)
+                                            {
+                                                try
+                                                {
+                                                    var bytes = kv.Value.BinaryValue.ToArray();
+                                                    value = System.Text.Encoding.UTF8.GetString(bytes);
+                                                }
+                                                catch
+                                                {
+                                                    // ignore binary decoding problems
+                                                }
+                                            }
+
+                                            if (!string.IsNullOrEmpty(value))
+                                            {
+                                                attrMap[normalized] = value;
+                                            }
+                                        }
+                                    }
+
+                                    // Map likely attribute names to DTO fields if they are missing
+                                    if (string.IsNullOrWhiteSpace(paymentEvent.Id))
+                                    {
+                                        if (attrMap.TryGetValue("id", out var v)) paymentEvent.Id = v;
+                                    }
+                                    if (string.IsNullOrWhiteSpace(paymentEvent.ExternalId))
+                                    {
+                                        if (attrMap.TryGetValue("externalid", out var v)) paymentEvent.ExternalId = v;
+                                    }
+                                    if (string.IsNullOrWhiteSpace(paymentEvent.Status))
+                                    {
+                                        if (attrMap.TryGetValue("status", out var v)) paymentEvent.Status = v;
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogDebug(ex, "Error while reading MessageAttributes fallback");
+                                }
+                            }
 
                             if (paymentEvent == null)
                             {

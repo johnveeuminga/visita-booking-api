@@ -169,6 +169,7 @@ namespace visita_booking_api.Controllers
                         MaxGuests = r.MaxGuests,
                         IsActive = r.IsActive,
                         UpdatedAt = r.UpdatedAt,
+                        TotalUnits = r.TotalUnits,
                         Photos = r.Photos.Where(p => p.IsActive).OrderBy(p => p.DisplayOrder).Select(p => new RoomPhotoDTO
                         {
                             Id = p.Id,
@@ -502,6 +503,8 @@ namespace visita_booking_api.Controllers
             try
             {
                 var currentUserId = GetCurrentUserId();
+                Console.WriteLine("Updating room to total units: " + request.TotalUnits);
+
                 if (currentUserId == null)
                 {
                     return Unauthorized("User authentication required");

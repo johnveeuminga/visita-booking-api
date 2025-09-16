@@ -40,24 +40,41 @@ namespace visita_booking_api.Services.Implementation
 
         public DateTime ConvertToLocalTime(DateTime utcDateTime)
         {
+            // Ensure the input is treated as UTC before converting
+            if (utcDateTime.Kind == DateTimeKind.Local)
+            {
+                // Convert local to UTC first
+                utcDateTime = utcDateTime.ToUniversalTime();
+            }
+
             if (utcDateTime.Kind == DateTimeKind.Unspecified)
             {
-                // Assume it's UTC if unspecified
+                // Assume unspecified is UTC
                 utcDateTime = DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
             }
-            
+
             return TimeZoneInfo.ConvertTimeFromUtc(utcDateTime, _localTimeZone);
         }
 
         public DateTime ConvertToUtc(DateTime localDateTime)
         {
-            if (localDateTime.Kind == DateTimeKind.Unspecified)
+            // If input is UTC already, return as-is
+            if (localDateTime.Kind == DateTimeKind.Utc)
             {
-                // Assume it's local time if unspecified
-                localDateTime = DateTime.SpecifyKind(localDateTime, DateTimeKind.Local);
+                return localDateTime;
             }
 
-            return TimeZoneInfo.ConvertTimeToUtc(localDateTime, _localTimeZone);
+            // If it's Local, convert to the target timezone by first converting to UTC
+            if (localDateTime.Kind == DateTimeKind.Local)
+            {
+                var utc = localDateTime.ToUniversalTime();
+                return TimeZoneInfo.ConvertTimeFromUtc(utc, TimeZoneInfo.Utc).ToUniversalTime();
+            }
+
+            // Unspecified: assume it's in the configured local timezone
+            var unspecifiedAsLocal = DateTime.SpecifyKind(localDateTime, DateTimeKind.Unspecified);
+            // Use ConvertTimeToUtc with the configured timezone
+            return TimeZoneInfo.ConvertTimeToUtc(unspecifiedAsLocal, _localTimeZone);
         }
 
         public TimeZoneInfo LocalTimeZone => _localTimeZone;

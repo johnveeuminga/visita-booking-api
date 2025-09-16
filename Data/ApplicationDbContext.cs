@@ -334,7 +334,7 @@ namespace VisitaBookingApi.Data
             modelBuilder.Entity<Booking>(entity =>
             {
                 entity.HasKey(b => b.Id);
-                entity.Property(b => b.BookingReference).IsRequired().HasMaxLength(20);
+                entity.Property(b => b.BookingReference).IsRequired().HasMaxLength(255);
                 entity.Property(b => b.GuestName).IsRequired().HasMaxLength(100);
                 entity.Property(b => b.GuestEmail).IsRequired().HasMaxLength(100);
                 entity.Property(b => b.GuestPhone).HasMaxLength(20);
@@ -376,7 +376,7 @@ namespace VisitaBookingApi.Data
             modelBuilder.Entity<BookingReservation>(entity =>
             {
                 entity.HasKey(br => br.Id);
-                entity.Property(br => br.ReservationReference).IsRequired().HasMaxLength(20);
+                entity.Property(br => br.ReservationReference).IsRequired().HasMaxLength(255);
                 entity.Property(br => br.CheckInDate).HasColumnType("date");
                 entity.Property(br => br.CheckOutDate).HasColumnType("date");
                 entity.Property(br => br.TotalAmount).HasPrecision(12, 2);
@@ -415,9 +415,9 @@ namespace VisitaBookingApi.Data
             modelBuilder.Entity<BookingPayment>(entity =>
             {
                 entity.HasKey(bp => bp.Id);
-                entity.Property(bp => bp.PaymentReference).IsRequired().HasMaxLength(30);
+                entity.Property(bp => bp.PaymentReference).IsRequired().HasMaxLength(255);
                 entity.Property(bp => bp.Amount).HasPrecision(12, 2);
-                entity.Property(bp => bp.Currency).IsRequired().HasMaxLength(3).HasDefaultValue("USD");
+                entity.Property(bp => bp.Currency).IsRequired().HasMaxLength(3).HasDefaultValue("PHP");
                 entity.Property(bp => bp.NetAmount).HasPrecision(12, 2);
                 entity.Property(bp => bp.ProviderFee).HasPrecision(10, 2);
                 entity.Property(bp => bp.PlatformFee).HasPrecision(10, 2);

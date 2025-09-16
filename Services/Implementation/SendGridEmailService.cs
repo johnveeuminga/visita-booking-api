@@ -76,6 +76,50 @@ namespace visita_booking_api.Services.Implementation
             {
                 _logger.LogError(ex, "Failed to send booking confirmation email for booking {BookingId}", booking.Id);
             }
+
+            // Send notification to accommodation owner (if available)
+            try
+            {
+                var accomEmail = booking.Room?.Accommodation?.EmailAddress;
+                if (!string.IsNullOrWhiteSpace(accomEmail))
+                {
+                    var ownerMsg = new SendGridMessage();
+                    ownerMsg.SetFrom(new EmailAddress(fromEmail, fromName));
+                    ownerMsg.AddTo(new EmailAddress(accomEmail));
+                    ownerMsg.SetSubject($"New Booking Confirmed: {booking.BookingReference}");
+
+                    var ob = new StringBuilder();
+                    ob.AppendLine($"A new booking has been confirmed for your property.");
+                    ob.AppendLine();
+                    ob.AppendLine($"Booking reference: {booking.BookingReference}");
+                    ob.AppendLine($"Guest: {booking.GuestName} <{booking.GuestEmail}>");
+                    ob.AppendLine($"Phone: {booking.GuestPhone}");
+                    ob.AppendLine($"Room ID: {booking.RoomId}");
+                    if (booking.Room != null)
+                        ob.AppendLine($"Room name: {booking.Room.Name}");
+                    if (booking.Room?.Accommodation != null)
+                        ob.AppendLine($"Accommodation: {booking.Room.Accommodation.Name}");
+                    ob.AppendLine();
+                    ob.AppendLine($"Check-in: {booking.CheckInDate:yyyy-MM-dd}");
+                    ob.AppendLine($"Check-out: {booking.CheckOutDate:yyyy-MM-dd}");
+                    ob.AppendLine();
+                    ob.AppendLine("Pricing:");
+                    ob.AppendLine($"- Room price: {roomPrice:C}");
+                    ob.AppendLine($"- Admin fee: {adminFee:C}");
+                    ob.AppendLine($"- Total amount: {booking.TotalAmount:C}");
+                    ob.AppendLine();
+                    ob.AppendLine("Please prepare for the guest's arrival.");
+
+                    ownerMsg.AddContent(MimeType.Text, ob.ToString());
+
+                    var ownerResp = await client.SendEmailAsync(ownerMsg);
+                    _logger.LogInformation("Sent accommodation notification email for booking {BookingId} to {Email} with status {StatusCode}", booking.Id, accomEmail, ownerResp.StatusCode);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send accommodation notification email for booking {BookingId}", booking.Id);
+            }
         }
     }
 }

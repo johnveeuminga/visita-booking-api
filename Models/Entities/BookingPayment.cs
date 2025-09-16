@@ -31,7 +31,7 @@ namespace visita_booking_api.Models.Entities
         public int Id { get; set; }
 
         [Required]
-        [StringLength(30)]
+        [StringLength(255)]
         public string PaymentReference { get; set; } = string.Empty;
 
         // Foreign Keys
@@ -47,7 +47,7 @@ namespace visita_booking_api.Models.Entities
 
         [Required]
         [StringLength(3)]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "PHP";
 
         // Xendit Integration
         [StringLength(100)]

@@ -51,23 +51,21 @@ namespace visita_booking_api.Services.Implementation
 
             // Parse booking reference from external id. Reuse same logic as BookingService.ProcessPaymentWebhookAsync
             var parts = paymentEvent.ExternalId.Split('-');
-            if (parts.Length < 2 || parts[0] != "booking")
+            if (parts.Length < 2 || parts[0] != "VB")
             {
                 _logger.LogWarning("Unsupported ExternalId format: {ExternalId}", paymentEvent.ExternalId);
                 return;
             }
 
-            var bookingReference = parts[1];
-
             // Load booking and check idempotency
             var booking = await _context.Bookings
                 .Include(b => b.Payments)
                 .Include(b => b.Reservation)
-                .FirstOrDefaultAsync(b => b.BookingReference == bookingReference, cancellationToken);
+                .FirstOrDefaultAsync(b => b.BookingReference == paymentEvent.ExternalId, cancellationToken);
 
             if (booking == null)
             {
-                _logger.LogWarning("Booking not found for reference {Ref}; skipping payment event", bookingReference);
+                _logger.LogWarning("Booking not found for reference {Ref}; skipping payment event", paymentEvent.ExternalId);
                 return;
             }
 
@@ -75,7 +73,7 @@ namespace visita_booking_api.Services.Implementation
             var existing = booking.Payments.FirstOrDefault(p => p.XenditExternalId == paymentEvent.ExternalId || p.ProviderTransactionId == paymentEvent.Id);
             if (existing != null && existing.IsSuccessful)
             {
-                _logger.LogInformation("Payment already processed for booking {Ref} payment id {PaymentId}", bookingReference, existing.Id);
+                _logger.LogInformation("Payment already processed for booking {Ref} payment id {PaymentId}", paymentEvent.ExternalId, existing.Id);
                 return; // idempotent
             }
 
@@ -114,7 +112,7 @@ namespace visita_booking_api.Services.Implementation
             catch (Exception ex)
             {
                 await transaction.RollbackAsync(cancellationToken);
-                _logger.LogError(ex, "Error saving payment for booking {Ref}", bookingReference);
+                _logger.LogError(ex, "Error saving payment for booking {Ref}", paymentEvent.ExternalId);
                 throw;
             }
 
@@ -136,13 +134,13 @@ namespace visita_booking_api.Services.Implementation
                     }
                     catch (Exception lex)
                     {
-                        _logger.LogWarning(lex, "Failed to warmup ledger for room {RoomId} after payment for booking {Ref}", booking.RoomId, bookingReference);
+                        _logger.LogWarning(lex, "Failed to warmup ledger for room {RoomId} after payment for booking {Ref}", booking.RoomId, paymentEvent.ExternalId);
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to invalidate cache after processing payment for booking {Ref}", bookingReference);
+                _logger.LogWarning(ex, "Failed to invalidate cache after processing payment for booking {Ref}", paymentEvent.ExternalId);
             }
         }
     }

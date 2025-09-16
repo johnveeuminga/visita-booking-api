@@ -180,12 +180,16 @@ namespace visita_booking_api.Services.Implementation
                     excludedRoomIds, 
                     unavailableRoomIds);
 
-                var stats = BuildSearchStatsOptimized(accommodations, allAvailableRooms, roomPrices);
+                // Convert roomPrices (which are total-stay amounts) to per-night averages for metadata/stats
+                var nights = (searchRequest.CheckOutDate - searchRequest.CheckInDate).Days;
+                var nightlyPriceValues = roomPrices.Values.Select(v => nights > 0 ? v / nights : v).ToList();
+
+                var stats = BuildSearchStatsOptimized(accommodations, allAvailableRooms, nightlyPriceValues);
 
                 var response = new AccommodationSearchResponseDTO
                 {
                     Results = results,
-                    Metadata = BuildSearchMetadata(totalAccommodations, searchRequest, searchId, stopwatch.Elapsed, roomPrices.Values),
+                    Metadata = BuildSearchMetadata(totalAccommodations, searchRequest, searchId, stopwatch.Elapsed, nightlyPriceValues),
                     AppliedFilters = BuildAppliedFilters(searchRequest),
                     Stats = stats
                 };
@@ -315,8 +319,9 @@ namespace visita_booking_api.Services.Implementation
                 var roomDtos = new List<AvailableRoomDTO>();
                 foreach (var room in availableRooms)
                 {
-                    var calculatedPrice = roomPrices.GetValueOrDefault(room.Id, room.DefaultPrice);
-                    var totalPrice = calculatedPrice * nights;
+                    // roomPrices contains the total price for the stay (sum of per-night prices)
+                    var totalPrice = roomPrices.GetValueOrDefault(room.Id, room.DefaultPrice * nights);
+                    var calculatedPrice = nights > 0 ? totalPrice / nights : totalPrice;
 
                     roomDtos.Add(new AvailableRoomDTO
                     {
@@ -633,9 +638,9 @@ namespace visita_booking_api.Services.Implementation
         private AccommodationSearchStatsDTO BuildSearchStatsOptimized(
             List<Accommodation> accommodations, 
             List<Room> allAvailableRooms, 
-            Dictionary<int, decimal> roomPrices)
+            IEnumerable<decimal> nightlyPrices)
         {
-            var prices = roomPrices.Values.ToList();
+            var prices = nightlyPrices.ToList();
             
             return new AccommodationSearchStatsDTO
             {
