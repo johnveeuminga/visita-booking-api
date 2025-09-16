@@ -547,6 +547,22 @@ namespace visita_booking_api.Services
                 updatedCount++;
             }
 
+            // After applying per-date overrides, warmup ledger for the affected dates and invalidate cache
+            try
+            {
+                if (bulkDto.Dates != null && bulkDto.Dates.Any())
+                {
+                    var startDate = bulkDto.Dates.Min().Date;
+                    var endDateExclusive = bulkDto.Dates.Max().Date.AddDays(1);
+                    await _ledgerService.WarmupRoomLedgerAsync(roomId, startDate, endDateExclusive);
+                    await _cacheInvalidation.InvalidateAvailabilityCacheAsync(roomId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to warmup ledger after bulk per-date availability update for room {RoomId}", roomId);
+            }
+
             return updatedCount;
         }
 

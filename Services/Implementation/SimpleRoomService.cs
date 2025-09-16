@@ -12,17 +12,23 @@ namespace visita_booking_api.Services.Implementation
         private readonly ApplicationDbContext _context;
         private readonly IMapper _mapper;
         private readonly IS3FileService _s3FileService;
+    private readonly visita_booking_api.Services.Interfaces.IAvailabilityLedgerService _ledgerService;
+    private readonly visita_booking_api.Services.Interfaces.ICacheInvalidationService _cacheInvalidation;
         private readonly ILogger<SimpleRoomService> _logger;
 
         public SimpleRoomService(
             ApplicationDbContext context,
             IMapper mapper,
             IS3FileService s3FileService,
+            visita_booking_api.Services.Interfaces.IAvailabilityLedgerService ledgerService,
+            visita_booking_api.Services.Interfaces.ICacheInvalidationService cacheInvalidation,
             ILogger<SimpleRoomService> logger)
         {
             _context = context;
             _mapper = mapper;
             _s3FileService = s3FileService;
+            _ledgerService = ledgerService;
+            _cacheInvalidation = cacheInvalidation;
             _logger = logger;
         }
 
@@ -152,6 +158,21 @@ namespace visita_booking_api.Services.Implementation
                 }
 
                 await transaction.CommitAsync();
+
+                // Warmup 6-month availability ledger for the newly created room (start = today, end exclusive = +6 months)
+                try
+                {
+                    var start = DateTime.UtcNow.Date;
+                    var endExclusive = start.AddMonths(6);
+                    // Fire-and-forget warmup; we await to make sure consistency is achieved before returning created room
+                    await _ledgerService.WarmupRoomLedgerAsync(room.Id, start, endExclusive);
+                    await _cacheInvalidation.InvalidateAvailabilityCacheAsync(room.Id);
+                }
+                catch (Exception ex)
+                {
+                    // Log and continue; room creation should not fail due to ledger warmup issues
+                    _logger.LogError(ex, "Failed to warmup availability ledger for new room {RoomId}", room.Id);
+                }
 
                 // Return created room details
                 return await GetByIdAsync(room.Id) ?? throw new InvalidOperationException("Failed to retrieve created room");
