@@ -21,6 +21,12 @@ namespace visita_booking_api.Models.Entities
         [Column(TypeName = "decimal(10,2)")]
         public decimal? OverridePrice { get; set; }
 
+    // Optional explicit available unit count for this date. If set, it overrides TotalUnits.
+    // Note: AvailableCount may exceed Room.TotalUnits to support special offerings or external capacity on specific dates.
+    // AvailableCount is authoritative for the date when present. To remove availability for a date, set AvailableCount = 0.
+        [Range(0, 1000)]
+        public int? AvailableCount { get; set; }
+
         [StringLength(500)]
         public string? Notes { get; set; }
 

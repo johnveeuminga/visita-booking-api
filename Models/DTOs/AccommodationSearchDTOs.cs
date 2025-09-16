@@ -19,6 +19,9 @@ namespace visita_booking_api.Models.DTOs
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public string? Logo { get; set; }
+        public string? Address { get; set; }
+        public string? EmailAddress { get; set; }
+        public string? ContactNo { get; set; }
         public bool IsActive { get; set; }
 
         // Available Rooms in this Accommodation
@@ -106,6 +109,9 @@ namespace visita_booking_api.Models.DTOs
 
         [Range(1, 20)]
         public int Guests { get; set; } = 1;
+
+    [Range(1, 100)]
+    public int Quantity { get; set; } = 1; // Number of units requested per room
 
         // Pagination
         public int Page { get; set; } = 1;

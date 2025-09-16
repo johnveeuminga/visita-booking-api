@@ -49,6 +49,10 @@ namespace visita_booking_api.Models.Entities
         [Range(1, 20)]
         public int NumberOfGuests { get; set; }
 
+    // Quantity of units booked for this booking (supports multi-unit rooms)
+    [Range(1, 1000)]
+    public int Quantity { get; set; } = 1;
+
         [Range(1, int.MaxValue)]
         public int NumberOfNights { get; set; }
 

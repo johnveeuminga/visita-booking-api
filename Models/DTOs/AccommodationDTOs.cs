@@ -14,6 +14,16 @@ namespace visita_booking_api.Models.DTOs
         public string? Description { get; set; }
 
         public IFormFile? LogoFile { get; set; }
+
+        [StringLength(500)]
+        public string? Address { get; set; }
+
+        [StringLength(100)]
+        [EmailAddress]
+        public string? EmailAddress { get; set; }
+
+        [StringLength(20)]
+        public string? ContactNo { get; set; }
     }
 
     public class UpdateAccommodationRequestDto
@@ -30,6 +40,16 @@ namespace visita_booking_api.Models.DTOs
         [StringLength(500)]
         public string? Logo { get; set; }
         
+        [StringLength(500)]
+        public string? Address { get; set; }
+
+        [StringLength(100)]
+        [EmailAddress]
+        public string? EmailAddress { get; set; }
+
+        [StringLength(20)]
+        public string? ContactNo { get; set; }
+        
         // BTC membership is a boolean flag; only admins may change this via the update endpoint
         public bool? IsBtcMember { get; set; }
     }
@@ -44,6 +64,9 @@ namespace visita_booking_api.Models.DTOs
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public string? Logo { get; set; }
+        public string? Address { get; set; }
+        public string? EmailAddress { get; set; }
+        public string? ContactNo { get; set; }
         public bool IsActive { get; set; }
         // Approval/status fields
         public string Status { get; set; } = "Pending";
@@ -68,6 +91,9 @@ namespace visita_booking_api.Models.DTOs
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
         public string? Logo { get; set; }
+        public string? Address { get; set; }
+        public string? EmailAddress { get; set; }
+        public string? ContactNo { get; set; }
         public bool IsActive { get; set; }
         public string Status { get; set; } = "Pending";
         public int ActiveRoomCount { get; set; }

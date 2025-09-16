@@ -22,6 +22,7 @@ namespace visita_booking_api.Services
             services.AddScoped<IRoomPriceCacheService, RoomPriceCacheService>();
             services.AddScoped<IAmenityService, SimpleAmenityService>();
             services.AddScoped<IS3FileService, SimpleS3FileService>();
+            services.AddScoped<IAvailabilityLedgerService, AvailabilityLedgerService>();
             
             // Development data seeding service
             services.AddScoped<IDevelopmentDataSeedingService, DevelopmentDataSeedingService>();

@@ -52,6 +52,99 @@ namespace visita_booking_api.Controllers
         }
 
         /// <summary>
+        /// Get rooms owned by the current authenticated user
+        /// </summary>
+        [HttpGet("my")]
+        [Authorize]
+        public async Task<ActionResult<List<RoomListItemDTO>>> GetMyRooms([FromQuery] bool includeInactive = false)
+        {
+            try
+            {
+                var currentUserId = GetCurrentUserId();
+                if (currentUserId == null)
+                {
+                    return Unauthorized("User authentication required");
+                }
+
+                // If admin, return all rooms (respect includeInactive flag)
+                if (IsAdmin())
+                {
+                    var allRooms = await _context.Rooms
+                        .Where(r => includeInactive || r.IsActive)
+                        .Select(r => new RoomListItemDTO
+                        {
+                            Id = r.Id,
+                            Name = r.Name,
+                            Description = r.Description,
+                            DefaultPrice = r.DefaultPrice,
+                            MaxGuests = r.MaxGuests,
+                            IsActive = r.IsActive,
+                            UpdatedAt = r.UpdatedAt,
+                            MainPhotoUrl = r.Photos.OrderBy(p => p.DisplayOrder).Select(p => p.CdnUrl ?? p.S3Url).FirstOrDefault(),
+                            PhotoCount = r.Photos.Count(p => p.IsActive),
+                            AmenityCount = r.RoomAmenities.Count(),
+                            MainAmenities = r.RoomAmenities.OrderBy(ra => ra.Amenity.DisplayOrder).Select(ra => ra.Amenity.Name).Take(3).ToList(),
+                            Accommodation = r.Accommodation == null ? null : new AccommodationSummaryDto
+                            {
+                                Id = r.Accommodation.Id,
+                                Name = r.Accommodation.Name,
+                                Description = r.Accommodation.Description,
+                                Logo = r.Accommodation.Logo,
+                                Address = r.Accommodation.Address,
+                                EmailAddress = r.Accommodation.EmailAddress,
+                                ContactNo = r.Accommodation.ContactNo,
+                                IsActive = r.Accommodation.IsActive,
+                                Status = r.Accommodation.Status.ToString(),
+                                ActiveRoomCount = r.Accommodation.Rooms.Count(rr => rr.IsActive)
+                            }
+                        })
+                        .ToListAsync();
+
+                    return Ok(allRooms);
+                }
+
+                // Normal user: return rooms for accommodations owned by the user
+                var rooms = await _context.Rooms
+                    .Where(r => (includeInactive || r.IsActive) && r.Accommodation != null && r.Accommodation.OwnerId == currentUserId.Value)
+                    .Select(r => new RoomListItemDTO
+                    {
+                        Id = r.Id,
+                        Name = r.Name,
+                        Description = r.Description,
+                        DefaultPrice = r.DefaultPrice,
+                        MaxGuests = r.MaxGuests,
+                        IsActive = r.IsActive,
+                        UpdatedAt = r.UpdatedAt,
+                        MainPhotoUrl = r.Photos.OrderBy(p => p.DisplayOrder).Select(p => p.CdnUrl ?? p.S3Url).FirstOrDefault(),
+                        PhotoCount = r.Photos.Count(p => p.IsActive),
+                        AmenityCount = r.RoomAmenities.Count(),
+                        MainAmenities = r.RoomAmenities.OrderBy(ra => ra.Amenity.DisplayOrder).Select(ra => ra.Amenity.Name).Take(3).ToList(),
+                        Accommodation = r.Accommodation == null ? null : new AccommodationSummaryDto
+                        {
+                            Id = r.Accommodation.Id,
+                            Name = r.Accommodation.Name,
+                            Description = r.Accommodation.Description,
+                            Logo = r.Accommodation.Logo,
+                            Address = r.Accommodation.Address,
+                            EmailAddress = r.Accommodation.EmailAddress,
+                            ContactNo = r.Accommodation.ContactNo,
+                            IsActive = r.Accommodation.IsActive,
+                            Status = r.Accommodation.Status.ToString(),
+                            ActiveRoomCount = r.Accommodation.Rooms.Count(rr => rr.IsActive)
+                        }
+                    })
+                    .ToListAsync();
+
+                return Ok(rooms);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving rooms for current user");
+                return StatusCode(500, "Internal server error");
+            }
+        }
+
+        /// <summary>
         /// Get a specific room by ID
         /// </summary>
         [HttpGet("{id}")]
@@ -64,13 +157,73 @@ namespace visita_booking_api.Controllers
                     return BadRequest("Invalid room ID");
                 }
 
-                var room = await _roomService.GetByIdAsync(id);
-                if (room == null)
-                {
-                    return NotFound($"Room with ID {id} not found");
-                }
+                // Project directly to DTO to avoid serializing EF navigation graphs
+                var roomDto = await _context.Rooms
+                    .Where(r => r.Id == id && r.IsActive)
+                    .Select(r => new RoomDetailsDTO
+                    {
+                        Id = r.Id,
+                        Name = r.Name,
+                        Description = r.Description,
+                        DefaultPrice = r.DefaultPrice,
+                        MaxGuests = r.MaxGuests,
+                        IsActive = r.IsActive,
+                        UpdatedAt = r.UpdatedAt,
+                        Photos = r.Photos.Where(p => p.IsActive).OrderBy(p => p.DisplayOrder).Select(p => new RoomPhotoDTO
+                        {
+                            Id = p.Id,
+                            FileName = p.FileName,
+                            FileUrl = p.CdnUrl ?? p.S3Url,
+                            LastModified = p.LastModified
+                        }).ToList(),
+                        Amenities = r.RoomAmenities.Select(ra => new AmenityDTO
+                        {
+                            Id = ra.Amenity.Id,
+                            Name = ra.Amenity.Name,
+                            Description = ra.Amenity.Description,
+                            Category = ra.Amenity.Category,
+                            IsActive = ra.Amenity.IsActive,
+                            LastModified = ra.Amenity.CreatedAt,
+                            DisplayOrder = ra.Amenity.DisplayOrder
+                        }).ToList(),
+                        PricingRules = r.PricingRules.Where(pr => pr.IsActive).Select(pr => new RoomPricingRuleDTO
+                        {
+                            Id = pr.Id,
+                            RoomId = pr.RoomId,
+                            RuleType = pr.RuleType.ToString(),
+                            Name = pr.Name,
+                            Description = pr.Description,
+                            DayOfWeek = pr.DayOfWeek,
+                            StartDate = pr.StartDate,
+                            EndDate = pr.EndDate,
+                            FixedPrice = pr.FixedPrice,
+                            IsActive = pr.IsActive,
+                            Priority = pr.Priority,
+                            MinimumNights = pr.MinimumNights,
+                            CreatedAt = pr.CreatedAt,
+                            UpdatedAt = pr.UpdatedAt
+                        }).ToList(),
+                        MainPhotoUrl = r.Photos.OrderBy(p => p.DisplayOrder).Select(p => p.CdnUrl ?? p.S3Url).FirstOrDefault(),
+                        Accommodation = r.Accommodation == null ? null : new AccommodationSummaryDto
+                        {
+                            Id = r.Accommodation.Id,
+                            Name = r.Accommodation.Name,
+                            Description = r.Accommodation.Description,
+                            Logo = r.Accommodation.Logo,
+                            Address = r.Accommodation.Address,
+                            EmailAddress = r.Accommodation.EmailAddress,
+                            ContactNo = r.Accommodation.ContactNo,
+                            IsActive = r.Accommodation.IsActive,
+                            Status = r.Accommodation.Status.ToString(),
+                            ActiveRoomCount = r.Accommodation.Rooms.Count(rr => rr.IsActive)
+                        }
+                    })
+                    .FirstOrDefaultAsync();
 
-                return Ok(room);
+                if (roomDto == null)
+                    return NotFound($"Room with ID {id} not found");
+
+                return Ok(roomDto);
             }
             catch (Exception ex)
             {
@@ -118,20 +271,21 @@ namespace visita_booking_api.Controllers
                     return BadRequest("Number of guests must be between 1 and 20");
                 }
 
-                // Verify room exists
-                var room = await _context.Rooms
+                // Verify room exists and select only required fields to avoid loading navigation properties
+                var roomInfo = await _context.Rooms
                     .Where(r => r.Id == id && r.IsActive)
+                    .Select(r => new { r.Id, r.MaxGuests })
                     .FirstOrDefaultAsync();
 
-                if (room == null)
+                if (roomInfo == null)
                 {
                     return NotFound($"Room with ID {id} not found or inactive");
                 }
 
                 // Check if room can accommodate the number of guests
-                if (numberOfGuests > room.MaxGuests)
+                if (numberOfGuests > roomInfo.MaxGuests)
                 {
-                    return BadRequest($"Room can only accommodate up to {room.MaxGuests} guests");
+                    return BadRequest($"Room can only accommodate up to {roomInfo.MaxGuests} guests");
                 }
 
                 // Create availability request

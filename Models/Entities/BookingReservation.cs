@@ -43,6 +43,9 @@ namespace visita_booking_api.Models.Entities
 
         public int NumberOfGuests { get; set; }
 
+        [Range(1, 1000)]
+        public int Quantity { get; set; } = 1;
+
         [Column(TypeName = "decimal(12,2)")]
         public decimal TotalAmount { get; set; }
 

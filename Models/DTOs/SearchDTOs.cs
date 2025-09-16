@@ -13,6 +13,8 @@ namespace visita_booking_api.Models.DTOs
         public DateTime CheckOutDate { get; set; }
 
         public int Guests { get; set; } = 1;
+    [Range(1, 100)]
+    public int Quantity { get; set; } = 1; // Number of units requested (for multi-unit bookings)
 
         [Range(0, 99999)]
         public decimal? MinPrice { get; set; }
@@ -84,7 +86,9 @@ namespace visita_booking_api.Models.DTOs
         public List<AmenityDTO> TopAmenities { get; set; } = new(); // Top 5 amenities
         public int TotalAmenities { get; set; }
 
-        public bool IsAvailable { get; set; }
+    // Inventory-aware availability
+    public int AvailableUnits { get; set; }
+    public bool IsAvailable { get; set; }
         public string AvailabilityStatus { get; set; } = string.Empty;
 
         // Search-specific fields

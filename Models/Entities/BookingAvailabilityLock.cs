@@ -39,6 +39,10 @@ namespace visita_booking_api.Models.Entities
 
         public LockType LockType { get; set; } = LockType.Reservation;
 
+        // Number of units this lock represents
+        [Range(1, 1000)]
+        public int Quantity { get; set; } = 1;
+
         // Timing
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime ExpiresAt { get; set; }

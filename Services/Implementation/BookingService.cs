@@ -15,6 +15,7 @@ namespace visita_booking_api.Services.Implementation
         private readonly ApplicationDbContext _context;
         private readonly IXenditService _xenditService;
         private readonly IRoomCalendarService _roomCalendarService;
+        private readonly IAvailabilityLedgerService _ledgerService;
         private readonly BookingConfiguration _config;
         private readonly ILogger<BookingService> _logger;
         private readonly IDistributedLockService _distributedLock;
@@ -24,6 +25,7 @@ namespace visita_booking_api.Services.Implementation
             ApplicationDbContext context,
             IXenditService xenditService,
             IRoomCalendarService roomCalendarService,
+            IAvailabilityLedgerService ledgerService,
             IOptions<BookingConfiguration> config,
             ILogger<BookingService> logger,
             IDistributedLockService distributedLock,
@@ -32,6 +34,7 @@ namespace visita_booking_api.Services.Implementation
             _context = context;
             _xenditService = xenditService;
             _roomCalendarService = roomCalendarService;
+            _ledgerService = ledgerService;
             _config = config.Value;
             _logger = logger;
             _distributedLock = distributedLock;
@@ -927,6 +930,29 @@ namespace visita_booking_api.Services.Implementation
         private async Task<(bool IsAvailable, string Message, List<DateTime>? ConflictingDates)> IsRoomAvailableAsync(
             int roomId, DateTime checkIn, DateTime checkOut)
         {
+            // First try ledger (cache) - fast path. Ledger is authoritative if present.
+            try
+            {
+                var ledger = await _ledgerService.TryGetMinAvailableFromLedgerAsync(new List<int> { roomId }, checkIn, checkOut);
+                if (ledger != null && ledger.ContainsKey(roomId))
+                {
+                    var minAvailable = ledger[roomId];
+                    if (minAvailable <= 0)
+                    {
+                        return (false, "Room is not available for the selected dates", null);
+                    }
+                    else
+                    {
+                        return (true, "Room is available", null);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Ledger read failure: log and continue to fallback checks
+                _logger.LogWarning(ex, "Ledger read failed during availability check for room {RoomId}", roomId);
+            }
+
             // Check for existing bookings
             var conflictingBookings = await _context.Bookings
                 .Where(b => b.RoomId == roomId
@@ -1059,7 +1085,7 @@ namespace visita_booking_api.Services.Implementation
             {
                 var timestamp = DateTimeOffset.UtcNow.ToString("yyMMdd");
                 var random = new Random().Next(1000, 9999);
-                bookingRef = $"VB{timestamp}{random}";
+                bookingRef = $"VB-{timestamp}{random}";
 
                 exists = await _context.Bookings.AnyAsync(b => b.BookingReference == bookingRef);
             } 

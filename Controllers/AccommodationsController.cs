@@ -40,6 +40,9 @@ namespace visita_booking_api.Controllers
                     Name = a.Name,
                     Description = a.Description,
                     Logo = a.Logo,
+                    Address = a.Address,
+                    EmailAddress = a.EmailAddress,
+                    ContactNo = a.ContactNo,
                     IsActive = a.IsActive,
                     Status = a.Status.ToString(),
                     ActiveRoomCount = a.Rooms.Count(r => r.IsActive)
@@ -73,6 +76,9 @@ namespace visita_booking_api.Controllers
                 Name = accommodation.Name,
                 Description = accommodation.Description,
                 Logo = accommodation.Logo,
+                Address = accommodation.Address,
+                EmailAddress = accommodation.EmailAddress,
+                ContactNo = accommodation.ContactNo,
                 IsActive = accommodation.IsActive,
                 Status = accommodation.Status.ToString(),
                 ApprovedAt = accommodation.ApprovedAt,
@@ -132,6 +138,9 @@ namespace visita_booking_api.Controllers
                     Name = a.Name,
                     Description = a.Description,
                     Logo = a.Logo,
+                    Address = a.Address,
+                    EmailAddress = a.EmailAddress,
+                    ContactNo = a.ContactNo,
                     IsActive = a.IsActive,
                     Status = a.Status.ToString(),
                     CreatedAt = a.CreatedAt,
@@ -197,6 +206,9 @@ namespace visita_booking_api.Controllers
                 Name = request.Name,
                 Description = request.Description ?? string.Empty,
                 Logo = logoUrl,
+                Address = request.Address,
+                EmailAddress = request.EmailAddress,
+                ContactNo = request.ContactNo,
                 OwnerId = currentUserId.Value,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
@@ -217,6 +229,9 @@ namespace visita_booking_api.Controllers
                 Name = accommodation.Name,
                 Description = accommodation.Description,
                 Logo = accommodation.Logo,
+                Address = accommodation.Address,
+                EmailAddress = accommodation.EmailAddress,
+                ContactNo = accommodation.ContactNo,
                 IsActive = accommodation.IsActive,
                 CreatedAt = accommodation.CreatedAt,
                 UpdatedAt = accommodation.UpdatedAt,
@@ -365,6 +380,9 @@ namespace visita_booking_api.Controllers
             accommodation.Name = request.Name;
             accommodation.Description = request.Description ?? string.Empty;
             accommodation.Logo = logoUrl;
+            accommodation.Address = request.Address;
+            accommodation.EmailAddress = request.EmailAddress;
+            accommodation.ContactNo = request.ContactNo;
 
             // Only admins may change BTC membership flag
             if (request.IsBtcMember.HasValue)
@@ -386,6 +404,9 @@ namespace visita_booking_api.Controllers
                 Name = accommodation.Name,
                 Description = accommodation.Description,
                 Logo = accommodation.Logo,
+                Address = accommodation.Address,
+                EmailAddress = accommodation.EmailAddress,
+                ContactNo = accommodation.ContactNo,
                 IsActive = accommodation.IsActive,
                 CreatedAt = accommodation.CreatedAt,
                 UpdatedAt = accommodation.UpdatedAt,

@@ -9,21 +9,24 @@ namespace visita_booking_api.Services
 {
     public class RoomCalendarService : IRoomCalendarService
     {
-        private readonly ApplicationDbContext _context;
-        private readonly ICacheInvalidationService _cacheInvalidation;
-        private readonly ILogger<RoomCalendarService> _logger;
-        private readonly IConfiguration _configuration;
+    private readonly ApplicationDbContext _context;
+    private readonly ICacheInvalidationService _cacheInvalidation;
+    private readonly ILogger<RoomCalendarService> _logger;
+    private readonly IConfiguration _configuration;
+    private readonly visita_booking_api.Services.Interfaces.IAvailabilityLedgerService _ledgerService;
 
         public RoomCalendarService(
             ApplicationDbContext context,
             ICacheInvalidationService cacheInvalidation,
             ILogger<RoomCalendarService> logger,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            visita_booking_api.Services.Interfaces.IAvailabilityLedgerService ledgerService)
         {
             _context = context;
             _cacheInvalidation = cacheInvalidation;
             _logger = logger;
             _configuration = configuration;
+            _ledgerService = ledgerService;
         }
 
         // Calendar Views
@@ -573,6 +576,20 @@ namespace visita_booking_api.Services
                 updatedCount++;
             }
 
+            // After applying the overrides, invalidate ledger for the affected room/date range so searches using ledger get refreshed
+            try
+            {
+                var startDate = rangeDto.StartDate.Date;
+                // Warmup uses exclusive end date; add one day
+                var endDateExclusive = rangeDto.EndDate.Date.AddDays(1);
+                await _ledgerService.WarmupRoomLedgerAsync(roomId, startDate, endDateExclusive);
+                await _cacheInvalidation.InvalidateAvailabilityCacheAsync(roomId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to warmup ledger after bulk availability update for room {RoomId}", roomId);
+            }
+
             return updatedCount;
         }
 
@@ -667,59 +684,156 @@ namespace visita_booking_api.Services
 
         private async Task<List<int>> GetBlockedRoomIdsForPeriodAsync(DateTime checkIn, DateTime checkOut, List<int>? roomIds = null)
         {
+            // Inventory-aware blocked room computation
+            // For each room, for each date in [checkIn, checkOut), compute EffectiveInventory and UnitsConsumed
+            // If any date has AvailableUnits <= 0 (i.e. UnitsConsumed >= EffectiveInventory), mark room blocked
+
             var blockedRoomIds = new List<int>();
 
-            // 1. Rooms blocked by availability overrides
-            var overrideQuery = _context.RoomAvailabilityOverrides
-                .Where(o => o.Date >= checkIn && o.Date < checkOut && !o.IsAvailable);
-
+            // Load candidate rooms and their total units
+            var roomsQuery = _context.Rooms.AsQueryable();
             if (roomIds != null && roomIds.Any())
-                overrideQuery = overrideQuery.Where(o => roomIds.Contains(o.RoomId));
+                roomsQuery = roomsQuery.Where(r => roomIds.Contains(r.Id));
 
-            var overrideBlockedRooms = await overrideQuery
-                .Select(o => o.RoomId)
-                .Distinct()
+            var rooms = await roomsQuery
+                .Select(r => new { r.Id, r.TotalUnits })
                 .ToListAsync();
 
-            blockedRoomIds.AddRange(overrideBlockedRooms);
+            if (!rooms.Any())
+                return blockedRoomIds;
 
-            // 2. Rooms with confirmed bookings (overlapping date ranges)
-            var bookingQuery = _context.Bookings
+            var roomIdSet = rooms.Select(r => r.Id).ToList();
+
+            // Load overrides in range
+            var overrides = await _context.RoomAvailabilityOverrides
+                .Where(o => roomIdSet.Contains(o.RoomId) && o.Date >= checkIn && o.Date < checkOut)
+                .ToListAsync();
+
+            var overridesByRoom = overrides
+                .GroupBy(o => o.RoomId)
+                .ToDictionary(g => g.Key, g => g.ToDictionary(o => o.Date.Date, o => o));
+
+            // Load confirmed bookings overlapping range
+            var bookings = await _context.Bookings
                 .Where(b => b.Status != BookingStatus.Cancelled
+                    && roomIdSet.Contains(b.RoomId)
                     && b.CheckInDate < checkOut
-                    && b.CheckOutDate > checkIn);
-
-            if (roomIds != null && roomIds.Any())
-                bookingQuery = bookingQuery.Where(b => roomIds.Contains(b.RoomId));
-
-            var bookingBlockedRooms = await bookingQuery
-                .Select(b => b.RoomId)
-                .Distinct()
+                    && b.CheckOutDate > checkIn)
+                .Select(b => new { b.RoomId, b.CheckInDate, b.CheckOutDate, b.Quantity })
                 .ToListAsync();
 
-            blockedRoomIds.AddRange(bookingBlockedRooms);
-
-            // 3. Rooms with active reservations (not expired)
-            var currentTime = DateTime.UtcNow;
-            var reservationQuery = _context.BookingReservations
+            // Load active reservations overlapping range
+            var now = DateTime.UtcNow;
+            var reservations = await _context.BookingReservations
                 .Where(r => r.Status == ReservationStatus.Active
-                    && r.ExpiresAt > currentTime
+                    && r.ExpiresAt > now
+                    && roomIdSet.Contains(r.RoomId)
                     && r.CheckInDate < checkOut
-                    && r.CheckOutDate > checkIn);
-
-            if (roomIds != null && roomIds.Any())
-                reservationQuery = reservationQuery.Where(r => roomIds.Contains(r.RoomId));
-
-            var reservationBlockedRooms = await reservationQuery
-                .Select(r => r.RoomId)
-                .Distinct()
+                    && r.CheckOutDate > checkIn)
+                .Select(r => new { r.RoomId, r.CheckInDate, r.CheckOutDate, r.Quantity })
                 .ToListAsync();
 
-            blockedRoomIds.AddRange(reservationBlockedRooms);
+            // Load active locks overlapping range
+            var locks = await _context.BookingAvailabilityLocks
+                .Where(l => l.IsActive && l.ExpiresAt > now
+                    && roomIdSet.Contains(l.RoomId)
+                    && l.CheckInDate < checkOut
+                    && l.CheckOutDate > checkIn)
+                .Select(l => new { l.RoomId, l.CheckInDate, l.CheckOutDate, l.Quantity })
+                .ToListAsync();
 
-            // Return distinct room IDs
+            // Helper: iterate each room and compute per-date usage
+            foreach (var room in rooms)
+            {
+                var isBlocked = false;
+
+                // Build a per-date dictionary of consumed units initialized to 0
+                var days = new List<DateTime>();
+                for (var d = checkIn.Date; d < checkOut.Date; d = d.AddDays(1))
+                    days.Add(d);
+
+                var consumed = days.ToDictionary(d => d, d => 0);
+
+                // Aggregate bookings
+                var roomBookings = bookings.Where(b => b.RoomId == room.Id);
+                foreach (var b in roomBookings)
+                {
+                    var start = MaxDate(b.CheckInDate.Date, checkIn.Date);
+                    var end = MinDate(b.CheckOutDate.Date, checkOut.Date);
+                    for (var d = start; d < end; d = d.AddDays(1))
+                    {
+                        if (consumed.ContainsKey(d)) consumed[d] += b.Quantity;
+                    }
+                }
+
+                // Aggregate reservations
+                var roomReservations = reservations.Where(r => r.RoomId == room.Id);
+                foreach (var r in roomReservations)
+                {
+                    var start = MaxDate(r.CheckInDate.Date, checkIn.Date);
+                    var end = MinDate(r.CheckOutDate.Date, checkOut.Date);
+                    for (var d = start; d < end; d = d.AddDays(1))
+                    {
+                        if (consumed.ContainsKey(d)) consumed[d] += r.Quantity;
+                    }
+                }
+
+                // Aggregate locks
+                var roomLocks = locks.Where(l => l.RoomId == room.Id);
+                foreach (var l in roomLocks)
+                {
+                    var start = MaxDate(l.CheckInDate.Date, checkIn.Date);
+                    var end = MinDate(l.CheckOutDate.Date, checkOut.Date);
+                    for (var d = start; d < end; d = d.AddDays(1))
+                    {
+                        if (consumed.ContainsKey(d)) consumed[d] += l.Quantity;
+                    }
+                }
+
+                // For each date check EffectiveInventory and compare
+                var roomOverrides = overridesByRoom.ContainsKey(room.Id) ? overridesByRoom[room.Id] : new Dictionary<DateTime, Models.Entities.RoomAvailabilityOverride>();
+
+                foreach (var d in days)
+                {
+                    int effectiveInventory;
+                    if (roomOverrides.TryGetValue(d, out var ov))
+                    {
+                        if (ov.AvailableCount.HasValue)
+                        {
+                            effectiveInventory = ov.AvailableCount.Value; // authoritative
+                        }
+                        else if (!ov.IsAvailable)
+                        {
+                            effectiveInventory = 0;
+                        }
+                        else
+                        {
+                            effectiveInventory = room.TotalUnits;
+                        }
+                    }
+                    else
+                    {
+                        effectiveInventory = room.TotalUnits;
+                    }
+
+                    var used = consumed[d];
+                    if (used >= effectiveInventory)
+                    {
+                        isBlocked = true;
+                        break;
+                    }
+                }
+
+                if (isBlocked)
+                    blockedRoomIds.Add(room.Id);
+            }
+
             return blockedRoomIds.Distinct().ToList();
         }
+
+        // Utility helpers for date bounds
+        private static DateTime MaxDate(DateTime a, DateTime b) => a > b ? a : b;
+        private static DateTime MinDate(DateTime a, DateTime b) => a < b ? a : b;
 
         public async Task<Dictionary<int, decimal>> GetRoomPricesAsync(List<int> roomIds, DateTime checkIn, DateTime checkOut)
         {
@@ -810,6 +924,113 @@ namespace visita_booking_api.Services
             }
 
             return roomPrices;
+        }
+
+        /// <summary>
+        /// Returns the minimum available units for each room across the date range [checkIn, checkOut).
+        /// This is optimized for bulk checks from search code.
+        /// </summary>
+        public async Task<Dictionary<int, int>> GetMinAvailableUnitsForRoomsAsync(List<int> roomIds, DateTime checkIn, DateTime checkOut)
+        {
+            var result = new Dictionary<int, int>();
+            if (!roomIds.Any()) return result;
+
+            // Load room totals
+            var roomTotals = await _context.Rooms
+                .Where(r => roomIds.Contains(r.Id))
+                .Select(r => new { r.Id, r.TotalUnits })
+                .ToDictionaryAsync(r => r.Id, r => r.TotalUnits);
+
+            // Load overrides
+            var overrides = await _context.RoomAvailabilityOverrides
+                .Where(o => roomIds.Contains(o.RoomId) && o.Date >= checkIn && o.Date < checkOut)
+                .ToListAsync();
+
+            var overridesByRoom = overrides.GroupBy(o => o.RoomId).ToDictionary(g => g.Key, g => g.ToDictionary(o => o.Date.Date, o => o));
+
+            // Load bookings/reservations/locks similar to blocked method but aggregated per date
+            var bookings = await _context.Bookings
+                .Where(b => b.Status != BookingStatus.Cancelled
+                    && roomIds.Contains(b.RoomId)
+                    && b.CheckInDate < checkOut
+                    && b.CheckOutDate > checkIn)
+                .Select(b => new { b.RoomId, b.CheckInDate, b.CheckOutDate, b.Quantity })
+                .ToListAsync();
+
+            var now = DateTime.UtcNow;
+            var reservations = await _context.BookingReservations
+                .Where(r => r.Status == ReservationStatus.Active
+                    && r.ExpiresAt > now
+                    && roomIds.Contains(r.RoomId)
+                    && r.CheckInDate < checkOut
+                    && r.CheckOutDate > checkIn)
+                .Select(r => new { r.RoomId, r.CheckInDate, r.CheckOutDate, r.Quantity })
+                .ToListAsync();
+
+            var locks = await _context.BookingAvailabilityLocks
+                .Where(l => l.IsActive && l.ExpiresAt > now
+                    && roomIds.Contains(l.RoomId)
+                    && l.CheckInDate < checkOut
+                    && l.CheckOutDate > checkIn)
+                .Select(l => new { l.RoomId, l.CheckInDate, l.CheckOutDate, l.Quantity })
+                .ToListAsync();
+
+            // For each room compute min available units
+            foreach (var roomId in roomIds)
+            {
+                var total = roomTotals.GetValueOrDefault(roomId, 0);
+
+                // Build per-date consumed map
+                var days = new List<DateTime>();
+                for (var d = checkIn.Date; d < checkOut.Date; d = d.AddDays(1)) days.Add(d);
+
+                var consumed = days.ToDictionary(d => d, d => 0);
+
+                foreach (var b in bookings.Where(b => b.RoomId == roomId))
+                {
+                    var start = MaxDate(b.CheckInDate.Date, checkIn.Date);
+                    var end = MinDate(b.CheckOutDate.Date, checkOut.Date);
+                    for (var d = start; d < end; d = d.AddDays(1)) if (consumed.ContainsKey(d)) consumed[d] += b.Quantity;
+                }
+
+                foreach (var r in reservations.Where(r => r.RoomId == roomId))
+                {
+                    var start = MaxDate(r.CheckInDate.Date, checkIn.Date);
+                    var end = MinDate(r.CheckOutDate.Date, checkOut.Date);
+                    for (var d = start; d < end; d = d.AddDays(1)) if (consumed.ContainsKey(d)) consumed[d] += r.Quantity;
+                }
+
+                foreach (var l in locks.Where(l => l.RoomId == roomId))
+                {
+                    var start = MaxDate(l.CheckInDate.Date, checkIn.Date);
+                    var end = MinDate(l.CheckOutDate.Date, checkOut.Date);
+                    for (var d = start; d < end; d = d.AddDays(1)) if (consumed.ContainsKey(d)) consumed[d] += l.Quantity;
+                }
+
+                // For each date compute effective inventory and available units
+                var roomOverrides = overridesByRoom.ContainsKey(roomId) ? overridesByRoom[roomId] : new Dictionary<DateTime, Models.Entities.RoomAvailabilityOverride>();
+                var minAvailable = int.MaxValue;
+
+                foreach (var d in days)
+                {
+                    int effectiveInventory;
+                    if (roomOverrides.TryGetValue(d, out var ov))
+                    {
+                        if (ov.AvailableCount.HasValue) effectiveInventory = ov.AvailableCount.Value;
+                        else if (!ov.IsAvailable) effectiveInventory = 0;
+                        else effectiveInventory = total;
+                    }
+                    else effectiveInventory = total;
+
+                    var available = effectiveInventory - consumed[d];
+                    if (available < minAvailable) minAvailable = available;
+                }
+
+                if (minAvailable == int.MaxValue) minAvailable = total; // no days -> full
+                result[roomId] = Math.Max(0, minAvailable);
+            }
+
+            return result;
         }
 
         // Holiday Management

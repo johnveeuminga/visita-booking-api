@@ -14,7 +14,7 @@ namespace visita_booking_api.Models.DTOs
         public DateTime UpdatedAt { get; set; }
         public List<RoomPhotoDTO> Photos { get; set; } = new();
         public List<AmenityDTO> Amenities { get; set; } = new();
-        public List<object> PricingRules { get; set; } = new();
+    public List<RoomPricingRuleDTO> PricingRules { get; set; } = new();
         public string? MainPhotoUrl { get; set; }
         public AccommodationSummaryDto? Accommodation { get; set; }
     }

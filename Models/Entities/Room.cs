@@ -33,6 +33,10 @@ namespace visita_booking_api.Models.Entities
 
         // Cache versioning for invalidation
         public int CacheVersion { get; set; } = 1;
+        
+        // Number of identical units available for this room type (default 1)
+        [Range(1, 1000)]
+        public int TotalUnits { get; set; } = 1;
 
         
         [ForeignKey(nameof(AccommodationId))]

@@ -4,6 +4,8 @@ using visita_booking_api.Services;
 using visita_booking_api.Services.Interfaces;
 using VisitaBookingApi.Data;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
+using visita_booking_api.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -73,6 +75,16 @@ builder.Services.ConfigureBookingOptions(builder.Configuration);
 
 // Add timezone service for GMT+8
 builder.Services.AddSingleton<ITimezoneService, visita_booking_api.Services.Implementation.TimezoneService>();
+
+// Register SQS payment consumer if configured
+try
+{
+    builder.Services.AddSqsPaymentConsumer(builder.Configuration);
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Failed to configure SQS consumer: {ex.Message}");
+}
 
 var app = builder.Build();
 

@@ -11,6 +11,7 @@ namespace visita_booking_api.Services.Implementation
     {
         private readonly ApplicationDbContext _context;
         private readonly IRoomCalendarService _calendarService;
+        private readonly IAvailabilityLedgerService _ledgerService;
         private readonly IRoomPriceCacheService _priceCacheService;
         private readonly ICacheService _cacheService;
         private readonly ILogger<AccommodationSearchService> _logger;
@@ -20,12 +21,14 @@ namespace visita_booking_api.Services.Implementation
             IRoomCalendarService calendarService,
             IRoomPriceCacheService priceCacheService,
             ICacheService cacheService,
-            ILogger<AccommodationSearchService> logger)
+            ILogger<AccommodationSearchService> logger,
+            IAvailabilityLedgerService ledgerService)
         {
             _context = context;
             _calendarService = calendarService;
             _priceCacheService = priceCacheService;
             _cacheService = cacheService;
+            _ledgerService = ledgerService;
             _logger = logger;
         }
 
@@ -73,14 +76,54 @@ namespace visita_booking_api.Services.Implementation
                         searchId, excludedRoomIds?.Count ?? 0);
                 }
 
-                // PHASE 2: Fast availability EXCLUSION filtering - find unavailable rooms
-                _logger.LogDebug("Applying availability exclusion filtering for accommodation search {SearchId}", searchId);
-                var unavailableRoomIds = await _calendarService.GetUnavailableRoomIdsAsync(
-                    searchRequest.CheckInDate, 
-                    searchRequest.CheckOutDate);
+                // PHASE 2: Fast availability EXCLUSION filtering - prefer ledger for candidate rooms
+                _logger.LogDebug("Applying availability exclusion filtering (ledger-first) for accommodation search {SearchId}", searchId);
 
-                _logger.LogDebug("Availability exclusion filtering for accommodation search {SearchId}: {UnavailableCount} unavailable rooms to exclude", 
-                    searchId, unavailableRoomIds.Count);
+                // Build a quick candidate set using cheap DB filters (active rooms + price exclusion + guest capacity)
+                var candidateQuery = _context.Rooms.Where(r => r.IsActive);
+                if (excludedRoomIds != null && excludedRoomIds.Any())
+                    candidateQuery = candidateQuery.Where(r => !excludedRoomIds.Contains(r.Id));
+                if (searchRequest.Guests > 0)
+                    candidateQuery = candidateQuery.Where(r => r.MaxGuests >= searchRequest.Guests);
+                if (searchRequest.SpecificAccommodationIds?.Any() == true)
+                    candidateQuery = candidateQuery.Where(r => r.AccommodationId.HasValue && searchRequest.SpecificAccommodationIds.Contains(r.AccommodationId.Value));
+
+                // Limit to a reasonable cap to avoid huge HMGET storms
+                var candidateIds = await candidateQuery.Select(r => r.Id).Take(5000).ToListAsync();
+
+                var unavailableFromLedger = new List<int>();
+                var unavailableFromCalendar = new List<int>();
+
+                if (candidateIds.Any())
+                {
+                    Dictionary<int,int> ledgerMap = new Dictionary<int,int>();
+                    try
+                    {
+                        ledgerMap = await _ledgerService.TryGetMinAvailableFromLedgerAsync(candidateIds, searchRequest.CheckInDate, searchRequest.CheckOutDate);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Availability ledger read failed for accommodation search {SearchId}, falling back to calendar for availability", searchId);
+                        ledgerMap = new Dictionary<int,int>();
+                    }
+
+                    // Rooms that ledger says have minAvailable < requested quantity are unavailable
+                    var requiredUnits = Math.Max(1, searchRequest.Quantity);
+                    unavailableFromLedger = ledgerMap.Where(kv => kv.Value < requiredUnits).Select(kv => kv.Key).ToList();
+
+                    // Rooms missing from ledger need calendar-based check for min available units
+                    var missingLedgerIds = candidateIds.Except(ledgerMap.Keys).ToList();
+                    if (missingLedgerIds.Any())
+                    {
+                        var fallback = await _calendarService.GetMinAvailableUnitsForRoomsAsync(missingLedgerIds, searchRequest.CheckInDate, searchRequest.CheckOutDate);
+                        unavailableFromCalendar = fallback.Where(kv => kv.Value < requiredUnits).Select(kv => kv.Key).ToList();
+                    }
+                }
+
+                // Merge ledger and calendar unavailable ids into a List for EF translation
+                var unavailableRoomIds = unavailableFromLedger.Concat(unavailableFromCalendar).Distinct().ToList();
+
+                _logger.LogDebug("Availability exclusion (ledger-first) for accommodation search {SearchId}: {UnavailableCount} unavailable rooms to exclude", searchId, unavailableRoomIds.Count);
 
                 // PHASE 3: Build accommodation query with room exclusions
                 var accommodationQuery = BuildAccommodationQueryWithExclusions(
@@ -324,6 +367,9 @@ namespace visita_booking_api.Services.Implementation
                     Name = accommodation.Name,
                     Description = accommodation.Description,
                     Logo = accommodation.Logo,
+                    Address = accommodation.Address,
+                    EmailAddress = accommodation.EmailAddress,
+                    ContactNo = accommodation.ContactNo,
                     IsActive = accommodation.IsActive,
                     AvailableRooms = roomDtos,
                     TotalAvailableRooms = roomDtos.Count,

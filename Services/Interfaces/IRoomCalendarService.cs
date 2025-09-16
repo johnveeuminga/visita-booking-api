@@ -43,6 +43,7 @@ namespace visita_booking_api.Services.Interfaces
         Task<List<int>> GetUnavailableRoomIdsAsync(DateTime checkIn, DateTime checkOut, List<int>? roomIds = null);
         
         Task<Dictionary<int, decimal>> GetRoomPricesAsync(List<int> roomIds, DateTime checkIn, DateTime checkOut);
+    Task<Dictionary<int, int>> GetMinAvailableUnitsForRoomsAsync(List<int> roomIds, DateTime checkIn, DateTime checkOut);
         
         // Holiday Management
         Task<List<HolidayCalendar>> GetHolidaysAsync(DateTime startDate, DateTime endDate, string country = "US");

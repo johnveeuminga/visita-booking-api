@@ -19,6 +19,17 @@ namespace visita_booking_api.Models.Entities
         [StringLength(500)]
         public string? Logo { get; set; }
 
+        // Contact Information
+        [StringLength(500)]
+        public string? Address { get; set; }
+
+        [StringLength(100)]
+        [EmailAddress]
+        public string? EmailAddress { get; set; }
+
+        [StringLength(20)]
+        public string? ContactNo { get; set; }
+
         // Status and approval
         public AccommodationStatus Status { get; set; } = AccommodationStatus.Pending;
         public bool IsActive { get; set; } = false; // Only active when approved
@@ -64,7 +75,7 @@ namespace visita_booking_api.Models.Entities
         [ForeignKey(nameof(ApprovedById))]
         public virtual VisitaBookingApi.Models.User? ApprovedBy { get; set; }
 
-        public virtual ICollection<Room> Rooms { get; set; } = new List<Room>();
+    public virtual ICollection<Room> Rooms { get; set; } = new List<Room>();
 
         public void UpdateTimestamp()
         {
