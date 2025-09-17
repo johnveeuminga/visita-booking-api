@@ -190,7 +190,8 @@ namespace visita_booking_api.Controllers
                             CanExtend = b.Reservation.ExtensionCount < 2,
                             IsActive = b.Reservation.Status == ReservationStatus.Active,
                             IsExpired = b.Reservation.Status == ReservationStatus.Expired,
-                            TimeUntilExpiry = b.Reservation.ExpiresAt - DateTime.UtcNow
+                            // compute TimeUntilExpiry after materialization to avoid EF type coercion issues
+                            TimeUntilExpiry = null
                         } : null,
 
                         Payments = b.Payments.Select(p => new BookingPaymentDto
@@ -259,6 +260,13 @@ namespace visita_booking_api.Controllers
 
                 if (booking == null)
                     return NotFound(new { message = "Booking not found" });
+
+                // compute TimeUntilExpiry on the DTO after EF materialization to avoid server-side expression translation between DateTime and TimeSpan
+                if (booking.Reservation != null && booking.Reservation.ExpiresAt != default)
+                {
+                    var timeUntil = booking.Reservation.ExpiresAt - DateTime.UtcNow;
+                    booking.Reservation.TimeUntilExpiry = timeUntil;
+                }
 
                 return Ok(booking);
             }

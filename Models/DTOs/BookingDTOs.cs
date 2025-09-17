@@ -129,7 +129,7 @@ namespace visita_booking_api.Models.DTOs
         public bool CanExtend { get; set; }
         public bool IsActive { get; set; }
         public bool IsExpired { get; set; }
-        public TimeSpan TimeUntilExpiry { get; set; }
+    public TimeSpan? TimeUntilExpiry { get; set; }
     }
 
     public class BookingPaymentDto
