@@ -24,9 +24,14 @@ namespace VisitaBookingApi.Controllers
         /// </summary>
         [HttpGet("users")]
         [ProducesResponseType(typeof(visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>), StatusCodes.Status200OK)]
-        public async Task<ActionResult<visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>>> GetUsers([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+        public async Task<ActionResult<visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>>> GetUsers(
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 20,
+            [FromQuery] string? email = null,
+            [FromQuery] string? name = null,
+            [FromQuery] string? role = null)
         {
-            var result = await _authService.GetUsersAsync(pageNumber, pageSize);
+            var result = await _authService.GetUsersAsync(pageNumber, pageSize, email, name, role);
             return Ok(result);
         }
 

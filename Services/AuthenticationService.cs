@@ -551,7 +551,7 @@ namespace VisitaBookingApi.Services
             }
         }
 
-        public async Task<visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>> GetUsersAsync(int page = 1, int pageSize = 20)
+        public async Task<visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>> GetUsersAsync(int page = 1, int pageSize = 20, string? email = null, string? name = null, string? role = null)
         {
             // Ensure sensible bounds
             if (page < 1) page = 1;
@@ -562,6 +562,25 @@ namespace VisitaBookingApi.Services
                 .ThenInclude(ur => ur.Role)
                 .AsNoTracking()
                 .Where(u => u.IsActive);
+
+            // Apply search filters
+            if (!string.IsNullOrEmpty(email))
+            {
+                var e = email.Trim().ToLowerInvariant();
+                query = query.Where(u => u.Email.ToLower().Contains(e));
+            }
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                var n = name.Trim().ToLowerInvariant();
+                query = query.Where(u => (u.FirstName + " " + u.LastName).ToLower().Contains(n) || u.FirstName.ToLower().Contains(n) || u.LastName.ToLower().Contains(n));
+            }
+
+            if (!string.IsNullOrEmpty(role))
+            {
+                var r = role.Trim();
+                query = query.Where(u => u.UserRoles.Any(ur => ur.Role.Name == r));
+            }
 
             // Sort by CreatedAt desc (recent first)
             query = query.OrderByDescending(u => u.CreatedAt);
