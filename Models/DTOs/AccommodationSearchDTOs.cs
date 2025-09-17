@@ -110,8 +110,8 @@ namespace visita_booking_api.Models.DTOs
         [Range(1, 9999)]
         public int Guests { get; set; } = 1;
 
-    [Range(1, 100)]
-    public int Quantity { get; set; } = 1; // Number of units requested per room
+        [Range(1, 100)]
+        public int Quantity { get; set; } = 1; // Number of units requested per room
 
         // Pagination
         public int Page { get; set; } = 1;
