@@ -317,6 +317,8 @@ namespace visita_booking_api.Models.DTOs
         public decimal DefaultPrice { get; set; }
         public int MaxGuests { get; set; }
         public string? MainPhotoUrl { get; set; }
+        // Photo details (populated for admin/detail views)
+        public List<RoomPhotoDTO> Photos { get; set; } = new();
         public List<string> Amenities { get; set; } = new();
     }
 
