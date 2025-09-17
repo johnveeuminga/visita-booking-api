@@ -9,13 +9,13 @@ using visita_booking_api.Models.Entities;
 namespace visita_booking_api.Controllers
 {
     [ApiController]
-    [Route("api/accommodations/my-bookings")]
-    public class MyBookingsController : ControllerBase
+    [Route("api/accommodation-owner/my-bookings")]
+    public class AccommodationOwnerBookingsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
-        private readonly ILogger<MyBookingsController> _logger;
+        private readonly ILogger<AccommodationOwnerBookingsController> _logger;
 
-        public MyBookingsController(ApplicationDbContext context, ILogger<MyBookingsController> logger)
+        public AccommodationOwnerBookingsController(ApplicationDbContext context, ILogger<AccommodationOwnerBookingsController> logger)
         {
             _context = context;
             _logger = logger;
