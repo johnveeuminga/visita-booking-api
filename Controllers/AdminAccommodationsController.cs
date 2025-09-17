@@ -56,7 +56,7 @@ namespace visita_booking_api.Controllers
             var total = await query.CountAsync();
 
             var items = await query
-                .OrderBy(a => a.Name)
+                .OrderByDescending(a => a.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(a => new AccommodationSummaryDto
