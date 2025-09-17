@@ -46,7 +46,7 @@ namespace visita_booking_api.Models.DTOs
         [Required]
         public decimal DefaultPrice { get; set; }
         
-        [Range(1, 20)]
+        [Range(1, 9999)]
         public int MaxGuests { get; set; } = 2;
         
         public List<int> AmenityIds { get; set; } = new();
@@ -68,7 +68,7 @@ namespace visita_booking_api.Models.DTOs
         [Required]
         public decimal DefaultPrice { get; set; }
 
-        [Range(1, 20)]
+        [Range(1, 9999)]
         public int MaxGuests { get; set; } = 2;
 
         public bool IsActive { get; set; } = true;

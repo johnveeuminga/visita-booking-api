@@ -55,7 +55,7 @@ namespace visita_booking_api.Models.DTOs
         [DataType(DataType.Date)]
         public DateTime CheckOutDate { get; set; }
 
-        [Range(1, 20)]
+        [Range(1, 9999)]
         public int NumberOfGuests { get; set; }
     }
 

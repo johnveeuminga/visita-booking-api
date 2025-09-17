@@ -19,7 +19,7 @@ namespace visita_booking_api.Models.Entities
         [Column(TypeName = "decimal(10,2)")]
         public decimal DefaultPrice { get; set; }
 
-        [Range(1, 20)]
+        [Range(1, 1000)]
         public int MaxGuests { get; set; } = 2;
 
         public bool IsActive { get; set; } = true;

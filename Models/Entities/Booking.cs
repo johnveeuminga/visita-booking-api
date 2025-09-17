@@ -46,7 +46,7 @@ namespace visita_booking_api.Models.Entities
         [Column(TypeName = "date")]
         public DateTime CheckOutDate { get; set; }
 
-        [Range(1, 20)]
+        [Range(1, 9999)]
         public int NumberOfGuests { get; set; }
 
         // Quantity of units booked for this booking (supports multi-unit rooms)
