@@ -45,6 +45,16 @@ namespace VisitaBookingApi.Models
 
         public DateTime? LastLoginAt { get; set; }
 
+        /// <summary>
+        /// Token used for password reset flows. Stored as a URL-safe base64 string.
+        /// </summary>
+        public string? PasswordResetToken { get; set; }
+
+        /// <summary>
+        /// Expiry for the password reset token (UTC)
+        /// </summary>
+        public DateTime? PasswordResetTokenExpiry { get; set; }
+
         // Navigation properties for RBAC
         public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 

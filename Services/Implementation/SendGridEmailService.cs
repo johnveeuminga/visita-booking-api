@@ -121,5 +121,50 @@ namespace visita_booking_api.Services.Implementation
                 _logger.LogError(ex, "Failed to send accommodation notification email for booking {BookingId}", booking.Id);
             }
         }
+
+        public async Task SendPasswordResetEmailAsync(string toEmail, string toName, string resetLink)
+        {
+            var apiKey = _configuration["SendGrid:ApiKey"];
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                _logger.LogWarning("SendGrid API key not configured; skipping password reset email to {Email}", toEmail);
+                return;
+            }
+
+            Console.WriteLine("apiKey: " + apiKey); // Debug line to check if apiKey is being read correctly
+
+            var client = new SendGridClient(apiKey);
+
+            var fromEmail = _configuration["SendGrid:FromEmail"] ?? "no-reply@visita.example";
+            var fromName = _configuration["SendGrid:FromName"] ?? "Visita";
+
+            var msg = new SendGridMessage();
+            msg.SetFrom(new EmailAddress(fromEmail, fromName));
+            msg.AddTo(new EmailAddress(toEmail, toName));
+            msg.SetSubject("Your Password Reset Link");
+
+            var builder = new StringBuilder();
+            builder.AppendLine($"Hello {toName},");
+            builder.AppendLine();
+            builder.AppendLine("We received a request to reset your password. Click the link below to set a new password. This link will expire in 1 hour.");
+            builder.AppendLine();
+            builder.AppendLine(resetLink);
+            builder.AppendLine();
+            builder.AppendLine("If you didn't request a password reset, you can safely ignore this email.");
+            builder.AppendLine();
+            builder.AppendLine("Thanks,\nThe Visita Team");
+
+            msg.AddContent(MimeType.Text, builder.ToString());
+
+            try
+            {
+                var response = await client.SendEmailAsync(msg);
+                _logger.LogInformation("Sent password reset email to {Email} with status {StatusCode}", toEmail, response.StatusCode);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send password reset email to {Email}", toEmail);
+            }
+        }
     }
 }

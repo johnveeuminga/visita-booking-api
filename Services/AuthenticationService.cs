@@ -17,15 +17,18 @@ namespace VisitaBookingApi.Services
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _configuration;
         private readonly ILogger<AuthenticationService> _logger;
+        private readonly visita_booking_api.Services.Interfaces.IEmailService _emailService;
 
         public AuthenticationService(
             ApplicationDbContext context,
             IConfiguration configuration,
-            ILogger<AuthenticationService> logger)
+            ILogger<AuthenticationService> logger,
+            visita_booking_api.Services.Interfaces.IEmailService emailService)
         {
             _context = context;
             _configuration = configuration;
             _logger = logger;
+            _emailService = emailService;
         }
 
         public async Task<AuthResponse> LoginAsync(LoginRequest request)
@@ -321,26 +324,130 @@ namespace VisitaBookingApi.Services
 
         public async Task<ApiResponse<bool>> ForgotPasswordAsync(ForgotPasswordRequest request)
         {
-            // Implementation for forgot password (send email with reset token)
-            // This is a placeholder - you'd integrate with your email service
-            return new ApiResponse<bool>
+            try
             {
-                Success = true,
-                Message = "Password reset email sent if account exists.",
-                Data = true
-            };
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+
+                // Always return success response to avoid account enumeration
+                if (user == null)
+                {
+                    return new ApiResponse<bool>
+                    {
+                        Success = true,
+                        Message = "Password reset email sent if account exists.",
+                        Data = true
+                    };
+                }
+
+                // Generate secure token (URL-safe)
+                var tokenBytes = RandomNumberGenerator.GetBytes(48);
+                var token = Convert.ToBase64String(tokenBytes).Replace("+", "-").Replace("/", "_").TrimEnd('=');
+
+                user.PasswordResetToken = token;
+                user.PasswordResetTokenExpiry = DateTime.UtcNow.AddHours(1); // 1 hour expiry
+                await _context.SaveChangesAsync();
+
+                // Build reset link using frontend settings if available
+                var frontendBase = _configuration["Frontend:BaseUrl"] ?? _configuration["Frontend:Url"];
+                if (string.IsNullOrEmpty(frontendBase))
+                {
+                    // Fallback to an API route that the frontend could call
+                    frontendBase = _configuration["App:BaseUrl"] ?? "https://your-frontend.example/reset-password";
+                }
+
+                // Ensure trailing slash handling
+                var separator = frontendBase.EndsWith("/") ? string.Empty : "/";
+                var resetLink = $"{frontendBase}{separator}auth/reset-password?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(token)}";
+
+                // Send email (fire-and-forget best-effort)
+                try
+                {
+                    await _emailService.SendPasswordResetEmailAsync(user.Email, user.FullName, resetLink);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send password reset email to {Email}", user.Email);
+                }
+
+                return new ApiResponse<bool>
+                {
+                    Success = true,
+                    Message = "Password reset email sent if account exists.",
+                    Data = true
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in ForgotPasswordAsync for email {Email}", request.Email);
+                return new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "An error occurred while processing the forgot password request.",
+                    Data = false
+                };
+            }
         }
 
         public async Task<ApiResponse<bool>> ResetPasswordAsync(ResetPasswordRequest request)
         {
-            // Implementation for password reset
-            // This is a placeholder - you'd verify the token and update password
-            return new ApiResponse<bool>
+            try
             {
-                Success = true,
-                Message = "Password reset successfully.",
-                Data = true
-            };
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+
+                if (user == null)
+                {
+                    return new ApiResponse<bool>
+                    {
+                        Success = false,
+                        Message = "Invalid token or email.",
+                        Data = false
+                    };
+                }
+
+                if (string.IsNullOrEmpty(user.PasswordResetToken) || user.PasswordResetTokenExpiry == null || user.PasswordResetTokenExpiry < DateTime.UtcNow)
+                {
+                    return new ApiResponse<bool>
+                    {
+                        Success = false,
+                        Message = "Reset token is invalid or has expired.",
+                        Data = false
+                    };
+                }
+
+                if (user.PasswordResetToken != request.Token)
+                {
+                    return new ApiResponse<bool>
+                    {
+                        Success = false,
+                        Message = "Invalid reset token.",
+                        Data = false
+                    };
+                }
+
+                // Update password and clear reset token
+                user.PasswordHash = HashPassword(request.NewPassword);
+                user.PasswordResetToken = null;
+                user.PasswordResetTokenExpiry = null;
+
+                await _context.SaveChangesAsync();
+
+                return new ApiResponse<bool>
+                {
+                    Success = true,
+                    Message = "Password reset successfully.",
+                    Data = true
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error in ResetPasswordAsync for email {Email}", request.Email);
+                return new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "An error occurred while resetting the password.",
+                    Data = false
+                };
+            }
         }
 
         public async Task<ApiResponse<bool>> VerifyEmailAsync(string email, string token)
