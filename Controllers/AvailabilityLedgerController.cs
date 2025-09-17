@@ -16,6 +16,7 @@ namespace visita_booking_api.Controllers
         }
 
         [HttpPost("generate")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Generate([FromQuery] DateTime start, [FromQuery] DateTime end)
         {
             if (end <= start) return BadRequest("end must be after start");
@@ -24,6 +25,7 @@ namespace visita_booking_api.Controllers
         }
 
         [HttpPost("warmup")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Warmup([FromQuery] int roomId, [FromQuery] DateTime start, [FromQuery] DateTime end)
         {
             if (end <= start) return BadRequest("end must be after start");

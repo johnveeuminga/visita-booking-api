@@ -392,6 +392,8 @@ namespace visita_booking_api.Models.DTOs
         public DateTime UpdatedAt { get; set; }
         public DateTime? ActualCheckInAt { get; set; }
         public DateTime? ActualCheckOutAt { get; set; }
+        // Accommodation summary (optional)
+        public AccommodationSummaryDto? Accommodation { get; set; }
     }
 
     public class AccommodationCheckInDto
