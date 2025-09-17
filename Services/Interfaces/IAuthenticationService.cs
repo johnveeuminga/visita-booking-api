@@ -15,5 +15,7 @@ namespace VisitaBookingApi.Services.Interfaces
         Task<ApiResponse<bool>> RevokeAllTokensAsync(int userId);
         Task<UserDto?> GetUserByIdAsync(int userId);
         Task<ApiResponse<bool>> AssignRoleAsync(AssignRoleRequest request);
+        Task<visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>> GetUsersAsync(int page = 1, int pageSize = 20);
+        Task<List<RoleDto>> GetAllRolesAsync();
     }
 }

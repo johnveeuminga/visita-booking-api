@@ -551,6 +551,57 @@ namespace VisitaBookingApi.Services
             }
         }
 
+        public async Task<visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>> GetUsersAsync(int page = 1, int pageSize = 20)
+        {
+            // Ensure sensible bounds
+            if (page < 1) page = 1;
+            if (pageSize < 1 || pageSize > 200) pageSize = 20;
+
+            var query = _context.Users
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .AsNoTracking()
+                .Where(u => u.IsActive);
+
+            // Sort by CreatedAt desc (recent first)
+            query = query.OrderByDescending(u => u.CreatedAt);
+
+            var totalCount = await query.CountAsync();
+
+            var users = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var items = users.Select(u => new UserListItemDto
+            {
+                Id = u.Id,
+                Email = u.Email,
+                FullName = u.FullName,
+                IsActive = u.IsActive,
+                Roles = u.UserRoles.Select(ur => ur.Role.Name).ToList(),
+                CreatedAt = u.CreatedAt
+            }).ToList();
+
+            return visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>.Create(items, totalCount, page, pageSize);
+        }
+
+        public async Task<List<RoleDto>> GetAllRolesAsync()
+        {
+            var roles = await _context.Roles
+                .AsNoTracking()
+                .OrderBy(r => r.Name)
+                .ToListAsync();
+
+            return roles.Select(r => new RoleDto
+            {
+                Id = r.Id,
+                Name = r.Name,
+                Description = r.Description,
+                CreatedAt = r.CreatedAt
+            }).ToList();
+        }
+
         #region Private Methods
 
         private string HashPassword(string password)
@@ -676,11 +727,7 @@ namespace VisitaBookingApi.Services
                     };
                 }
 
-                // Remove all existing roles (users should only have one role at a time)
-                var rolesToRemove = user.UserRoles.ToList();
-                _context.UserRoles.RemoveRange(rolesToRemove);
-
-                // Assign the new role
+                // Assign the new role (allow multiple roles per user, but prevent duplicates)
                 var userRole = new UserRole
                 {
                     UserId = user.Id,

@@ -320,38 +320,7 @@ namespace VisitaBookingApi.Controllers
             }
         }
 
-        /// <summary>
-        /// Assign a role to a user (Admin only)
-        /// </summary>
-        /// <param name="request">Role assignment details</param>
-        /// <returns>Success status</returns>
-        [HttpPost("assign-role")]
-        [Authorize(Roles = "Admin")]
-        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<ActionResult<ApiResponse<bool>>> AssignRole([FromBody] AssignRoleRequest request)
-        {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(new ApiResponse<bool>
-                {
-                    Success = false,
-                    Message = "Invalid request data.",
-                    Data = false
-                });
-            }
-
-            var result = await _authService.AssignRoleAsync(request);
-            
-            if (!result.Success)
-            {
-                return BadRequest(result);
-            }
-
-            return Ok(result);
-        }
+        // Role assignment moved to AdminUsersController
 
         /// <summary>
         /// Health check endpoint for authentication service

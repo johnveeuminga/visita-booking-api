@@ -496,3 +496,5 @@ secrets/
 # Generated SQL migration files
 sql-migrations/
 *.sql
+
+docs/
