@@ -551,7 +551,7 @@ namespace VisitaBookingApi.Services
             }
         }
 
-        public async Task<visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>> GetUsersAsync(int page = 1, int pageSize = 20, string? email = null, string? name = null, string? role = null)
+        public async Task<visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>> GetUsersAsync(int page = 1, int pageSize = 20, string? q = null, string? role = null)
         {
             // Ensure sensible bounds
             if (page < 1) page = 1;
@@ -563,17 +563,15 @@ namespace VisitaBookingApi.Services
                 .AsNoTracking()
                 .Where(u => u.IsActive);
 
-            // Apply search filters
-            if (!string.IsNullOrEmpty(email))
+            // Apply search filter - q searches both name and email
+            if (!string.IsNullOrEmpty(q))
             {
-                var e = email.Trim().ToLowerInvariant();
-                query = query.Where(u => u.Email.ToLower().Contains(e));
-            }
-
-            if (!string.IsNullOrEmpty(name))
-            {
-                var n = name.Trim().ToLowerInvariant();
-                query = query.Where(u => (u.FirstName + " " + u.LastName).ToLower().Contains(n) || u.FirstName.ToLower().Contains(n) || u.LastName.ToLower().Contains(n));
+                var searchTerm = q.Trim().ToLowerInvariant();
+                query = query.Where(u =>
+                    u.Email.ToLower().Contains(searchTerm) ||
+                    (u.FirstName + " " + u.LastName).ToLower().Contains(searchTerm) ||
+                    u.FirstName.ToLower().Contains(searchTerm) ||
+                    u.LastName.ToLower().Contains(searchTerm));
             }
 
             if (!string.IsNullOrEmpty(role))

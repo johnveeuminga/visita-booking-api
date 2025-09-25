@@ -27,11 +27,10 @@ namespace VisitaBookingApi.Controllers
         public async Task<ActionResult<visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>>> GetUsers(
             [FromQuery] int pageNumber = 1,
             [FromQuery] int pageSize = 20,
-            [FromQuery] string? email = null,
-            [FromQuery] string? name = null,
+            [FromQuery] string? q = null,
             [FromQuery] string? role = null)
         {
-            var result = await _authService.GetUsersAsync(pageNumber, pageSize, email, name, role);
+            var result = await _authService.GetUsersAsync(pageNumber, pageSize, q, role);
             return Ok(result);
         }
 

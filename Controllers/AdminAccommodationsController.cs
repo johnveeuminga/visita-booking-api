@@ -26,7 +26,8 @@ namespace visita_booking_api.Controllers
         /// Admin: search and list accommodations (filter by name and status). Paginated.
         /// </summary>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<AccommodationSummaryDto>>> List([FromQuery] string? name, [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        [ProducesResponseType(typeof(PaginatedResponse<AccommodationSummaryDto>), StatusCodes.Status200OK)]
+        public async Task<ActionResult<PaginatedResponse<AccommodationSummaryDto>>> List([FromQuery] string? name, [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
             if (page < 1) page = 1;
             if (pageSize < 1 || pageSize > 100) pageSize = 20;
@@ -53,7 +54,7 @@ namespace visita_booking_api.Controllers
                 }
             }
 
-            var total = await query.CountAsync();
+            var totalCount = await query.CountAsync();
 
             var items = await query
                 .OrderByDescending(a => a.CreatedAt)
@@ -71,9 +72,9 @@ namespace visita_booking_api.Controllers
                 })
                 .ToListAsync();
 
-            Response.Headers["X-Total-Count"] = total.ToString();
+            var response = PaginatedResponse<AccommodationSummaryDto>.Create(items, totalCount, page, pageSize);
 
-            return Ok(items);
+            return Ok(response);
         }
 
         /// <summary>
