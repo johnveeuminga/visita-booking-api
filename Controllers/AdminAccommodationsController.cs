@@ -68,7 +68,9 @@ namespace visita_booking_api.Controllers
                     Logo = a.Logo,
                     IsActive = a.IsActive,
                     Status = a.Status.ToString(),
-                    ActiveRoomCount = a.Rooms.Count(r => r.IsActive)
+                    ActiveRoomCount = a.Rooms.Count(r => r.IsActive),
+                    CommentCount = _context.AccommodationComments.Count(c => c.AccommodationId == a.Id) // ADDED THIS LINE
+
                 })
                 .ToListAsync();
 
@@ -187,6 +189,100 @@ namespace visita_booking_api.Controllers
             return Ok(new { Success = true });
         }
 
+        /// <summary>
+        /// Admin: set accommodation to pending status with optional internal comment
+        /// </summary>
+        [HttpPost("{id}/set-pending")]
+        public async Task<IActionResult> SetPending(int id, [FromBody] SetPendingRequest? request)
+        {
+            var accommodation = await _context.Accommodations.FirstOrDefaultAsync(a => a.Id == id);
+            if (accommodation == null) return NotFound();
+
+            var adminId = GetCurrentUserId();
+            if (!adminId.HasValue) return Forbid();
+
+            // Set status to pending
+            accommodation.Status = Models.Enums.AccommodationStatus.Pending;
+            accommodation.UpdateTimestamp();
+
+            // If comment is provided, add it as an internal note
+            if (!string.IsNullOrWhiteSpace(request?.Comment))
+            {
+                var comment = new AccommodationComment
+                {
+                    AccommodationId = id,
+                    AdminId = adminId.Value,
+                    Comment = request.Comment,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.AccommodationComments.Add(comment);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Success = true });
+        }
+
+        /// <summary>
+        /// Admin: add an internal comment/note to an accommodation
+        /// These comments are only visible to other admins, not to the accommodation owner
+        /// </summary>
+        [HttpPost("{id}/comments")]
+        public async Task<IActionResult> AddComment(int id, [FromBody] AddCommentRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.Comment))
+            {
+                return BadRequest("Comment cannot be empty");
+            }
+
+            var accommodation = await _context.Accommodations.FirstOrDefaultAsync(a => a.Id == id);
+            if (accommodation == null) return NotFound();
+
+            var adminId = GetCurrentUserId();
+            if (!adminId.HasValue) return Forbid();
+
+            var comment = new AccommodationComment
+            {
+                AccommodationId = id,
+                AdminId = adminId.Value,
+                Comment = request.Comment,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.AccommodationComments.Add(comment);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { Success = true });
+        }
+
+        /// <summary>
+        /// Admin: get all internal comments for an accommodation
+        /// These are internal admin notes not visible to accommodation owners
+        /// </summary>
+        [HttpGet("{id}/comments")]
+        public async Task<ActionResult<List<AccommodationCommentDto>>> GetComments(int id)
+        {
+            var accommodation = await _context.Accommodations.FirstOrDefaultAsync(a => a.Id == id);
+            if (accommodation == null) return NotFound();
+
+            var comments = await _context.AccommodationComments
+                .Include(c => c.Admin)
+                .Where(c => c.AccommodationId == id)
+                .OrderByDescending(c => c.CreatedAt)
+                .Select(c => new AccommodationCommentDto
+                {
+                    Id = c.Id,
+                    AccommodationId = c.AccommodationId,
+                    AdminId = c.AdminId,
+                    AdminName = c.Admin.FullName ?? c.Admin.Email,
+                    Comment = c.Comment,
+                    CreatedAt = c.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(comments);
+        }
+
         private int? GetCurrentUserId()
         {
             var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -196,6 +292,16 @@ namespace visita_booking_api.Controllers
         public class RejectAccommodationRequest
         {
             public string? Reason { get; set; }
+        }
+
+        public class SetPendingRequest
+        {
+            public string? Comment { get; set; }
+        }
+
+        public class AddCommentRequest
+        {
+            public string Comment { get; set; } = string.Empty;
         }
     }
 }

@@ -177,7 +177,7 @@ namespace VisitaBookingApi.Services
             {
                 // Verify Google ID token
                 var payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken);
-                
+
                 if (payload == null)
                 {
                     return new AuthResponse
@@ -709,7 +709,7 @@ namespace VisitaBookingApi.Services
                     .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                     .FirstOrDefaultAsync(u => u.Id == request.UserId);
-                
+
                 if (user == null)
                 {
                     return new ApiResponse<bool>
@@ -775,6 +775,74 @@ namespace VisitaBookingApi.Services
                 };
             }
         }
+        public async Task<ApiResponse<bool>> RemoveRoleAsync(RemoveRoleRequest request)
+{
+    try
+    {
+        // Validate that the user exists
+        var user = await _context.Users
+            .Include(u => u.UserRoles)
+            .ThenInclude(ur => ur.Role)
+            .FirstOrDefaultAsync(u => u.Id == request.UserId);
+        
+        if (user == null)
+        {
+            return new ApiResponse<bool>
+            {
+                Success = false,
+                Message = "User not found.",
+                Data = false
+            };
+        }
+
+        // Validate that the role exists
+        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == request.Role);
+        if (role == null)
+        {
+            return new ApiResponse<bool>
+            {
+                Success = false,
+                Message = "Invalid role specified.",
+                Data = false
+            };
+        }
+
+        // Check if user has this role
+        var userRole = user.UserRoles.FirstOrDefault(ur => ur.Role.Name == request.Role);
+        if (userRole == null)
+        {
+            return new ApiResponse<bool>
+            {
+                Success = false,
+                Message = $"User does not have the {request.Role} role.",
+                Data = false
+            };
+        }
+
+        // Remove the role
+        _context.UserRoles.Remove(userRole);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Role {Role} removed from user {UserId} by admin", request.Role, request.UserId);
+
+        return new ApiResponse<bool>
+        {
+            Success = true,
+            Message = $"Successfully removed {request.Role} role from user.",
+            Data = true
+        };
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error removing role {Role} from user {UserId}", request.Role, request.UserId);
+        return new ApiResponse<bool>
+        {
+            Success = false,
+            Message = "An error occurred while removing the role.",
+            Data = false
+        };
+    }
+}
 
         #endregion
     }

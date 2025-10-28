@@ -45,7 +45,6 @@ namespace VisitaBookingApi.Controllers
             return Ok(roles);
         }
 
-        /// <summary>
         /// Assign a role to a user
         /// </summary>
         [HttpPost("assign-role")]
@@ -64,7 +63,7 @@ namespace VisitaBookingApi.Controllers
             }
 
             var result = await _authService.AssignRoleAsync(request);
-            
+
             if (!result.Success)
             {
                 return BadRequest(result);
@@ -72,5 +71,34 @@ namespace VisitaBookingApi.Controllers
 
             return Ok(result);
         }
+
+/// <summary>
+/// Remove a role from a user
+/// </summary>
+[HttpPost("remove-role")]
+[ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+public async Task<ActionResult<ApiResponse<bool>>> RemoveRole([FromBody] RemoveRoleRequest request)
+{
+    if (!ModelState.IsValid)
+    {
+        return BadRequest(new ApiResponse<bool>
+        {
+            Success = false,
+            Message = "Invalid request data.",
+            Data = false
+        });
     }
+
+    var result = await _authService.RemoveRoleAsync(request);
+    
+    if (!result.Success)
+    {
+        return BadRequest(result);
+    }
+
+    return Ok(result);
+}
+    }
+    
 }

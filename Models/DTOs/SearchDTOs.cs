@@ -117,6 +117,7 @@ namespace visita_booking_api.Models.DTOs
         public int PageSize { get; set; }
         public bool HasNextPage { get; set; }
         public bool HasPreviousPage { get; set; }
+    public int ShuffleSeed { get; set; }
 
         public TimeSpan SearchDuration { get; set; }
         public bool CacheHit { get; set; }

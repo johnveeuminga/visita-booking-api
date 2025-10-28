@@ -1,3 +1,5 @@
+// 
+
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using visita_booking_api.Models.DTOs;
@@ -36,7 +38,7 @@ namespace visita_booking_api.Services.Implementation
         {
             var stopwatch = Stopwatch.StartNew();
             var searchId = Guid.NewGuid().ToString("N")[..8];
-            
+
             try
             {
                 _logger.LogInformation("Starting optimized accommodation search {SearchId} for {Guests} guests from {CheckIn} to {CheckOut}", 
@@ -60,7 +62,6 @@ namespace visita_booking_api.Services.Implementation
                 ValidateSearchRequest(searchRequest);
 
                 // PHASE 1: Ultra-fast price range EXCLUSION filtering using cached data
-                // This eliminates 80-90% of rooms in milliseconds by finding what to EXCLUDE
                 List<int>? excludedRoomIds = null;
                 if (searchRequest.MinPrice.HasValue || searchRequest.MaxPrice.HasValue)
                 {
@@ -79,7 +80,6 @@ namespace visita_booking_api.Services.Implementation
                 // PHASE 2: Fast availability EXCLUSION filtering - prefer ledger for candidate rooms
                 _logger.LogDebug("Applying availability exclusion filtering (ledger-first) for accommodation search {SearchId}", searchId);
 
-                // Build a quick candidate set using cheap DB filters (active rooms + price exclusion + guest capacity)
                 var candidateQuery = _context.Rooms.Where(r => r.IsActive);
                 if (excludedRoomIds != null && excludedRoomIds.Any())
                     candidateQuery = candidateQuery.Where(r => !excludedRoomIds.Contains(r.Id));
@@ -88,7 +88,6 @@ namespace visita_booking_api.Services.Implementation
                 if (searchRequest.SpecificAccommodationIds?.Any() == true)
                     candidateQuery = candidateQuery.Where(r => r.AccommodationId.HasValue && searchRequest.SpecificAccommodationIds.Contains(r.AccommodationId.Value));
 
-                // Limit to a reasonable cap to avoid huge HMGET storms
                 var candidateIds = await candidateQuery.Select(r => r.Id).Take(5000).ToListAsync();
 
                 var unavailableFromLedger = new List<int>();
@@ -107,11 +106,9 @@ namespace visita_booking_api.Services.Implementation
                         ledgerMap = new Dictionary<int,int>();
                     }
 
-                    // Rooms that ledger says have minAvailable < requested quantity are unavailable
                     var requiredUnits = Math.Max(1, searchRequest.Quantity);
                     unavailableFromLedger = ledgerMap.Where(kv => kv.Value < requiredUnits).Select(kv => kv.Key).ToList();
 
-                    // Rooms missing from ledger need calendar-based check for min available units
                     var missingLedgerIds = candidateIds.Except(ledgerMap.Keys).ToList();
                     if (missingLedgerIds.Any())
                     {
@@ -120,7 +117,6 @@ namespace visita_booking_api.Services.Implementation
                     }
                 }
 
-                // Merge ledger and calendar unavailable ids into a List for EF translation
                 var unavailableRoomIds = unavailableFromLedger.Concat(unavailableFromCalendar).Distinct().ToList();
 
                 _logger.LogDebug("Availability exclusion (ledger-first) for accommodation search {SearchId}: {UnavailableCount} unavailable rooms to exclude", searchId, unavailableRoomIds.Count);
@@ -158,8 +154,22 @@ namespace visita_booking_api.Services.Implementation
                     .AsNoTracking()
                     .ToListAsync();
 
-                _logger.LogDebug("Database query for accommodation search {SearchId}: retrieved {Count} accommodations for final processing", 
-                    searchId, accommodations.Count);
+                // PHASE 5.5: Apply in-memory sorting based on search term
+                if (!string.IsNullOrWhiteSpace(searchRequest.SearchTerm))
+                {
+                    // Search term exists: Apply relevance sorting
+                    var searchTerm = searchRequest.SearchTerm.Trim().ToLower();
+                    accommodations = accommodations
+                        .OrderByDescending(a => a.Name.ToLower() == searchTerm ? 5 : 0)
+                        .ThenByDescending(a => a.Name.ToLower().StartsWith(searchTerm) ? 4 : 0)
+                        .ThenByDescending(a => a.Name.ToLower().Contains(searchTerm) ? 3 : 0)
+                        .ThenByDescending(a => (a.Description?.ToLower().Contains(searchTerm) ?? false) ? 1 : 0)
+                        .ThenBy(a => a.Name)
+                        .ToList();
+                    
+                    _logger.LogDebug("Applied relevance sorting for search term: {SearchTerm}", searchTerm);
+                }
+                // Otherwise: Keep the database sorting (Price, LastUpdated, etc.)
 
                 // PHASE 6: Calculate exact pricing only for final results
                 var allAvailableRooms = accommodations
@@ -180,7 +190,6 @@ namespace visita_booking_api.Services.Implementation
                     excludedRoomIds, 
                     unavailableRoomIds);
 
-                // Convert roomPrices (which are total-stay amounts) to per-night averages for metadata/stats
                 var nights = (searchRequest.CheckOutDate - searchRequest.CheckInDate).Days;
                 var nightlyPriceValues = roomPrices.Values.Select(v => nights > 0 ? v / nights : v).ToList();
 
@@ -214,25 +223,17 @@ namespace visita_booking_api.Services.Implementation
             List<int>? excludedRoomIds,
             List<int> unavailableRoomIds)
         {
-            // Only include accommodations that are approved. Relying on Status ensures Pending/Rejected/Suspended
-            // accommodations are excluded from public searches even if IsActive is inconsistent.
             var query = _context.Accommodations.Where(a => a.Status == Models.Enums.AccommodationStatus.Approved);
 
-            // Only include accommodations that have at least one available room that meets criteria
             query = query.Where(a => a.Rooms.Any(r => 
                 r.IsActive &&
-                // Exclude by price (if price filter applied)
                 (excludedRoomIds == null || !excludedRoomIds.Contains(r.Id)) &&
-                // Exclude unavailable rooms
                 !unavailableRoomIds.Contains(r.Id) &&
-                // Guest capacity filter
                 (searchRequest.Guests <= 1 || r.MaxGuests >= searchRequest.Guests) &&
-                // Amenity filters (if specified)
                 (!searchRequest.RequiredAmenityIds.Any() || 
                  r.RoomAmenities.Any(ra => searchRequest.RequiredAmenityIds.Contains(ra.AmenityId)))
             ));
 
-            // Apply accommodation-level filters
             if (!string.IsNullOrWhiteSpace(searchRequest.SearchTerm))
             {
                 var searchTerm = searchRequest.SearchTerm.ToLower();
@@ -246,7 +247,6 @@ namespace visita_booking_api.Services.Implementation
                 query = query.Where(a => searchRequest.SpecificAccommodationIds.Contains(a.Id));
             }
 
-            // Minimum available rooms filter
             if (searchRequest.MinRoomsAvailable.HasValue)
             {
                 query = query.Where(a => a.Rooms.Count(r => 
@@ -264,27 +264,37 @@ namespace visita_booking_api.Services.Implementation
             IQueryable<Accommodation> query, 
             AccommodationSearchRequestDTO searchRequest)
         {
-            // Apply sorting
-            var sortedQuery = searchRequest.SortBy switch
+            IOrderedQueryable<Accommodation> sortedQuery;
+            
+            // If there's NO search term, apply user's sort preference
+            if (string.IsNullOrWhiteSpace(searchRequest.SearchTerm))
             {
-                AccommodationSearchSortBy.Name => searchRequest.SortOrder == SortOrder.Ascending 
-                    ? query.OrderBy(a => a.Name) 
-                    : query.OrderByDescending(a => a.Name),
-                
-                AccommodationSearchSortBy.LastUpdated => searchRequest.SortOrder == SortOrder.Ascending 
-                    ? query.OrderBy(a => a.UpdatedAt) 
-                    : query.OrderByDescending(a => a.UpdatedAt),
-                
-                AccommodationSearchSortBy.AvailableRooms => searchRequest.SortOrder == SortOrder.Ascending 
-                    ? query.OrderBy(a => a.Rooms.Count(r => r.IsActive)) 
-                    : query.OrderByDescending(a => a.Rooms.Count(r => r.IsActive)),
-                
-                AccommodationSearchSortBy.Price => searchRequest.SortOrder == SortOrder.Ascending 
-                    ? query.OrderBy(a => a.Rooms.Where(r => r.IsActive).Min(r => r.DefaultPrice)) 
-                    : query.OrderByDescending(a => a.Rooms.Where(r => r.IsActive).Min(r => r.DefaultPrice)),
-                
-                _ => query.OrderBy(a => a.Name) // Default sorting
-            };
+                sortedQuery = searchRequest.SortBy switch
+                {
+                    AccommodationSearchSortBy.Name => searchRequest.SortOrder == SortOrder.Ascending 
+                        ? query.OrderBy(a => a.Name) 
+                        : query.OrderByDescending(a => a.Name),
+                    
+                    AccommodationSearchSortBy.LastUpdated => searchRequest.SortOrder == SortOrder.Ascending 
+                        ? query.OrderBy(a => a.UpdatedAt) 
+                        : query.OrderByDescending(a => a.UpdatedAt),
+                    
+                    AccommodationSearchSortBy.AvailableRooms => searchRequest.SortOrder == SortOrder.Ascending 
+                        ? query.OrderBy(a => a.Rooms.Count(r => r.IsActive)) 
+                        : query.OrderByDescending(a => a.Rooms.Count(r => r.IsActive)),
+                    
+                    AccommodationSearchSortBy.Price => searchRequest.SortOrder == SortOrder.Ascending 
+                        ? query.OrderBy(a => a.Rooms.Where(r => r.IsActive).Min(r => r.DefaultPrice)) 
+                        : query.OrderByDescending(a => a.Rooms.Where(r => r.IsActive).Min(r => r.DefaultPrice)),
+                    
+                    _ => query.OrderBy(a => a.Name)
+                };
+            }
+            else
+            {
+                // With search term: Just order by Name for now (we'll sort in-memory later for relevance)
+                sortedQuery = query.OrderBy(a => a.Name);
+            }
 
             // Apply pagination
             return sortedQuery
@@ -304,9 +314,8 @@ namespace visita_booking_api.Services.Implementation
 
             foreach (var accommodation in accommodations)
             {
-                // Filter to only available rooms that meet criteria
                 var availableRooms = accommodation.Rooms
-                    .Where(r => r.IsActive && 
+                    .Where(r => r.IsActive &&
                                (excludedRoomIds == null || !excludedRoomIds.Contains(r.Id)) &&
                                !unavailableRoomIds.Contains(r.Id) &&
                                (searchRequest.Guests <= 1 || r.MaxGuests >= searchRequest.Guests))
@@ -315,11 +324,9 @@ namespace visita_booking_api.Services.Implementation
                 if (!availableRooms.Any() && !searchRequest.IncludeUnavailableAccommodations)
                     continue;
 
-                // Build available rooms DTOs with optimized pricing
                 var roomDtos = new List<AvailableRoomDTO>();
                 foreach (var room in availableRooms)
                 {
-                    // roomPrices contains the total price for the stay (sum of per-night prices)
                     var totalPrice = roomPrices.GetValueOrDefault(room.Id, room.DefaultPrice * nights);
                     var calculatedPrice = nights > 0 ? totalPrice / nights : totalPrice;
 
@@ -349,15 +356,13 @@ namespace visita_booking_api.Services.Implementation
                         AvailabilityStatus = "Available",
                         RoomRelevanceScore = CalculateRoomRelevanceScore(room, searchRequest),
                         LastUpdated = room.UpdatedAt,
-                        DailyPrices = new List<DailyPriceDTO>() // Can be populated if needed
+                        DailyPrices = new List<DailyPriceDTO>()
                     });
                 }
 
-                // Calculate accommodation-level statistics
                 var calculatedPrices = roomDtos.Where(r => r.CalculatedPrice.HasValue).Select(r => r.CalculatedPrice!.Value).ToList();
                 var totalPrices = roomDtos.Where(r => r.TotalPrice.HasValue).Select(r => r.TotalPrice!.Value).ToList();
 
-                // Get all unique amenities across all rooms
                 var allAmenities = availableRooms
                     .SelectMany(r => r.RoomAmenities.Select(ra => ra.Amenity.Name))
                     .GroupBy(name => name)
@@ -382,146 +387,13 @@ namespace visita_booking_api.Services.Implementation
                     LowestRoomPrice = calculatedPrices.Any() ? calculatedPrices.Min() : null,
                     HighestRoomPrice = calculatedPrices.Any() ? calculatedPrices.Max() : null,
                     AverageRoomPrice = calculatedPrices.Any() ? calculatedPrices.Average() : null,
-                    TotalStayPrice = totalPrices.Any() ? totalPrices.Min() : null, // Cheapest room's total
+                    TotalStayPrice = totalPrices.Any() ? totalPrices.Min() : null,
                     PopularAmenities = allAmenities,
                     TotalUniqueAmenities = allAmenities.Count,
                     RelevanceScore = CalculateRelevanceScore(accommodation, searchRequest),
-                    PopularityScore = accommodation.Rooms.Count(r => r.IsActive), // Simple popularity metric
+                    PopularityScore = accommodation.Rooms.Count(r => r.IsActive),
                     LastUpdated = accommodation.UpdatedAt,
-                    MainImageUrl = accommodation.Logo, // Could be expanded to include accommodation images
-                    ImageUrls = new List<string>()
-                });
-            }
-
-            return results;
-        }
-
-        private async Task<IQueryable<Accommodation>> ApplyRoomFilters(
-            IQueryable<Accommodation> query, 
-            AccommodationSearchRequestDTO searchRequest, 
-            List<int> availableRoomIds)
-        {
-            // Filter accommodations that have rooms meeting the criteria
-            return query.Where(a => a.Rooms.Any(r => 
-                availableRoomIds.Contains(r.Id) &&
-                r.IsActive &&
-                (searchRequest.Guests <= 1 || r.MaxGuests >= searchRequest.Guests) &&
-                (!searchRequest.MinPrice.HasValue || r.DefaultPrice >= searchRequest.MinPrice.Value) &&
-                (!searchRequest.MaxPrice.HasValue || r.DefaultPrice <= searchRequest.MaxPrice.Value) &&
-                (!searchRequest.RequiredAmenityIds.Any() || 
-                 r.RoomAmenities.Any(ra => searchRequest.RequiredAmenityIds.Contains(ra.AmenityId)))
-            ));
-        }
-
-        private IQueryable<Accommodation> ApplySorting(IQueryable<Accommodation> query, AccommodationSearchRequestDTO searchRequest)
-        {
-            return searchRequest.SortBy switch
-            {
-                AccommodationSearchSortBy.Name => searchRequest.SortOrder == SortOrder.Ascending 
-                    ? query.OrderBy(a => a.Name) 
-                    : query.OrderByDescending(a => a.Name),
-                
-                AccommodationSearchSortBy.LastUpdated => searchRequest.SortOrder == SortOrder.Ascending 
-                    ? query.OrderBy(a => a.UpdatedAt) 
-                    : query.OrderByDescending(a => a.UpdatedAt),
-                
-                AccommodationSearchSortBy.AvailableRooms => searchRequest.SortOrder == SortOrder.Ascending 
-                    ? query.OrderBy(a => a.Rooms.Count(r => r.IsActive)) 
-                    : query.OrderByDescending(a => a.Rooms.Count(r => r.IsActive)),
-                
-                AccommodationSearchSortBy.Price => searchRequest.SortOrder == SortOrder.Ascending 
-                    ? query.OrderBy(a => a.Rooms.Where(r => r.IsActive).Min(r => r.DefaultPrice)) 
-                    : query.OrderByDescending(a => a.Rooms.Where(r => r.IsActive).Min(r => r.DefaultPrice)),
-                
-                _ => query.OrderBy(a => a.Name) // Default sorting
-            };
-        }
-
-        private async Task<List<AccommodationSearchResultDTO>> BuildAccommodationSearchResults(
-            List<Accommodation> accommodations, 
-            AccommodationSearchRequestDTO searchRequest, 
-            List<int> availableRoomIds)
-        {
-            var results = new List<AccommodationSearchResultDTO>();
-            var nights = (searchRequest.CheckOutDate - searchRequest.CheckInDate).Days;
-
-            foreach (var accommodation in accommodations)
-            {
-                // Filter rooms that are available and meet criteria
-                var availableRooms = accommodation.Rooms
-                    .Where(r => availableRoomIds.Contains(r.Id) && 
-                               r.IsActive &&
-                               (searchRequest.Guests <= 1 || r.MaxGuests >= searchRequest.Guests))
-                    .ToList();
-
-                if (!availableRooms.Any() && !searchRequest.IncludeUnavailableAccommodations)
-                    continue;
-
-                // Build available rooms DTOs
-                var roomDtos = new List<AvailableRoomDTO>();
-                foreach (var room in availableRooms)
-                {
-                    var calculatedPrice = await _calendarService.GetPriceForDateAsync(room.Id, searchRequest.CheckInDate);
-                    var totalPrice = await _calendarService.CalculateStayTotalAsync(room.Id, searchRequest.CheckInDate, searchRequest.CheckOutDate);
-
-                    roomDtos.Add(new AvailableRoomDTO
-                    {
-                        Id = room.Id,
-                        Name = room.Name,
-                        Description = room.Description,
-                        DefaultPrice = room.DefaultPrice,
-                        MaxGuests = room.MaxGuests,
-                        CalculatedPrice = calculatedPrice,
-                        TotalPrice = totalPrice,
-                        MainPhotoUrl = room.MainPhotoUrl,
-                        PhotoUrls = room.Photos.Where(p => p.IsActive).Take(3).Select(p => p.CdnUrl ?? p.S3Url).ToList(),
-                        TopAmenities = room.RoomAmenities.Take(5).Select(ra => new AmenityDTO
-                        {
-                            Id = ra.Amenity.Id,
-                            Name = ra.Amenity.Name,
-                            Category = ra.Amenity.Category
-                        }).ToList(),
-                        TotalAmenities = room.RoomAmenities.Count,
-                        IsAvailable = true,
-                        AvailabilityStatus = "Available",
-                        RoomRelevanceScore = 1.0f, // Calculate based on criteria match
-                        LastUpdated = room.UpdatedAt
-                    });
-                }
-
-                // Calculate accommodation-level statistics
-                var prices = roomDtos.Where(r => r.CalculatedPrice.HasValue).Select(r => r.CalculatedPrice!.Value).ToList();
-                var totalPrices = roomDtos.Where(r => r.TotalPrice.HasValue).Select(r => r.TotalPrice!.Value).ToList();
-
-                // Get all unique amenities across all rooms
-                var allAmenities = availableRooms
-                    .SelectMany(r => r.RoomAmenities.Select(ra => ra.Amenity.Name))
-                    .GroupBy(name => name)
-                    .OrderByDescending(g => g.Count())
-                    .Take(10)
-                    .Select(g => g.Key)
-                    .ToList();
-
-                results.Add(new AccommodationSearchResultDTO
-                {
-                    Id = accommodation.Id,
-                    Name = accommodation.Name,
-                    Description = accommodation.Description,
-                    Logo = accommodation.Logo,
-                    IsActive = accommodation.IsActive,
-                    AvailableRooms = roomDtos,
-                    TotalAvailableRooms = roomDtos.Count,
-                    TotalRoomsInAccommodation = accommodation.Rooms.Count(r => r.IsActive),
-                    LowestRoomPrice = prices.Any() ? prices.Min() : null,
-                    HighestRoomPrice = prices.Any() ? prices.Max() : null,
-                    AverageRoomPrice = prices.Any() ? prices.Average() : null,
-                    TotalStayPrice = totalPrices.Any() ? totalPrices.Min() : null, // Cheapest room's total
-                    PopularAmenities = allAmenities,
-                    TotalUniqueAmenities = allAmenities.Count,
-                    RelevanceScore = CalculateRelevanceScore(accommodation, searchRequest),
-                    PopularityScore = accommodation.Rooms.Count(r => r.IsActive), // Simple popularity metric
-                    LastUpdated = accommodation.UpdatedAt,
-                    MainImageUrl = accommodation.Logo, // Could be expanded to include accommodation images
+                    MainImageUrl = accommodation.Logo,
                     ImageUrls = new List<string>()
                 });
             }
@@ -533,24 +405,28 @@ namespace visita_booking_api.Services.Implementation
         {
             float score = 1.0f;
 
-            // Boost score based on search term match
             if (!string.IsNullOrWhiteSpace(searchRequest.SearchTerm))
             {
                 var searchTerm = searchRequest.SearchTerm.ToLower();
-                if (accommodation.Name.ToLower().Contains(searchTerm))
-                    score += 2.0f;
-                if (accommodation.Description?.ToLower().Contains(searchTerm) == true)
+                var name = accommodation.Name.ToLower();
+                var description = accommodation.Description?.ToLower() ?? "";
+                
+                if (name == searchTerm)
+                    score += 5.0f;
+                else if (name.StartsWith(searchTerm))
+                    score += 4.0f;
+                else if (name.Contains(searchTerm))
+                    score += 3.0f;
+                else if (description.Contains(searchTerm))
                     score += 1.0f;
             }
 
-            // Boost score based on number of available rooms
             var activeRooms = accommodation.Rooms.Count(r => r.IsActive);
             score += activeRooms * 0.1f;
 
             return score;
         }
 
-        // Helper methods for caching and utilities
         private string GenerateAccommodationSearchCacheKey(AccommodationSearchRequestDTO searchRequest)
         {
             var keyParts = new[]
@@ -569,7 +445,7 @@ namespace visita_booking_api.Services.Implementation
                 searchRequest.SortOrder.ToString(),
                 searchRequest.MinRoomsAvailable?.ToString() ?? "null"
             };
-            
+
             var key = string.Join("_", keyParts);
             return $"accommodation_search_{key.GetHashCode():X8}";
         }
@@ -581,20 +457,18 @@ namespace visita_booking_api.Services.Implementation
 
         private async Task CacheAccommodationSearchResultAsync(string cacheKey, AccommodationSearchResponseDTO response)
         {
-            await _cacheService.SetAsync(cacheKey, response, TimeSpan.FromMinutes(15)); // Cache for 15 minutes
+            await _cacheService.SetAsync(cacheKey, response, TimeSpan.FromMinutes(15));
         }
 
         private float CalculateRoomRelevanceScore(Room room, AccommodationSearchRequestDTO searchRequest)
         {
             float score = 1.0f;
 
-            // Boost score if room meets guest requirements perfectly
             if (room.MaxGuests == searchRequest.Guests)
                 score += 0.5f;
             else if (room.MaxGuests >= searchRequest.Guests)
                 score += 0.2f;
 
-            // Boost score based on amenities match
             if (searchRequest.RequiredAmenityIds.Any())
             {
                 var matchingAmenities = room.RoomAmenities
@@ -629,7 +503,7 @@ namespace visita_booking_api.Services.Implementation
                 MaxPrice = priceList.Any() ? priceList.Max() : null,
                 AveragePrice = priceList.Any() ? priceList.Average() : null,
                 AvailableRooms = priceList.Count(),
-                UnavailableRooms = 0, // Will be calculated properly if needed
+                UnavailableRooms = 0,
                 IsSmartPagination = false,
                 ActualResultsFound = totalResults
             };
@@ -678,21 +552,6 @@ namespace visita_booking_api.Services.Implementation
 
             return distribution;
         }
-        private SearchMetadataDTO BuildSearchMetadata(int totalResults, AccommodationSearchRequestDTO searchRequest, string searchId, TimeSpan duration)
-        {
-            return new SearchMetadataDTO
-            {
-                TotalResults = totalResults,
-                CurrentPage = searchRequest.Page,
-                PageSize = searchRequest.PageSize,
-                TotalPages = (int)Math.Ceiling((double)totalResults / searchRequest.PageSize),
-                HasNextPage = searchRequest.Page * searchRequest.PageSize < totalResults,
-                HasPreviousPage = searchRequest.Page > 1,
-                SearchDuration = duration,
-                SearchId = searchId,
-                CacheHit = false
-            };
-        }
 
         private SearchFiltersDTO BuildAppliedFilters(AccommodationSearchRequestDTO searchRequest)
         {
@@ -704,52 +563,15 @@ namespace visita_booking_api.Services.Implementation
                 MinPrice = searchRequest.MinPrice,
                 MaxPrice = searchRequest.MaxPrice,
                 SearchTerm = searchRequest.SearchTerm,
-                SortBy = (RoomSearchSortBy)searchRequest.SortBy, // Cast or map appropriately
+                SortBy = (RoomSearchSortBy)searchRequest.SortBy,
                 SortOrder = searchRequest.SortOrder
             };
         }
 
-        // Remove unused helper methods and fix method signatures
-        private AccommodationSearchStatsDTO BuildSearchStats(List<Accommodation> accommodations, List<int> availableRoomIds, AccommodationSearchRequestDTO searchRequest)
-        {
-            var availableRooms = accommodations.SelectMany(a => a.Rooms.Where(r => availableRoomIds.Contains(r.Id))).ToList();
-            var prices = availableRooms.Select(r => r.DefaultPrice).ToList();
-
-            return new AccommodationSearchStatsDTO
-            {
-                TotalAccommodations = accommodations.Count,
-                AccommodationsWithAvailability = accommodations.Count(a => a.Rooms.Any(r => availableRoomIds.Contains(r.Id))),
-                TotalAvailableRooms = availableRooms.Count,
-                GlobalMinPrice = prices.Any() ? prices.Min() : null,
-                GlobalMaxPrice = prices.Any() ? prices.Max() : null,
-                GlobalAveragePrice = prices.Any() ? prices.Average() : null,
-                AvailabilityDistribution = BuildAvailabilityDistribution(accommodations, availableRoomIds)
-            };
-        }
-
-        private Dictionary<string, int> BuildAvailabilityDistribution(List<Accommodation> accommodations, List<int> availableRoomIds)
-        {
-            var distribution = new Dictionary<string, int>
-            {
-                ["1-2 rooms"] = 0,
-                ["3-5 rooms"] = 0,
-                ["6-10 rooms"] = 0,
-                ["11+ rooms"] = 0
-            };
-
-            foreach (var accommodation in accommodations)
-            {
-                var availableCount = accommodation.Rooms.Count(r => availableRoomIds.Contains(r.Id));
-                if (availableCount <= 2) distribution["1-2 rooms"]++;
-                else if (availableCount <= 5) distribution["3-5 rooms"]++;
-                else if (availableCount <= 10) distribution["6-10 rooms"]++;
-                else distribution["11+ rooms"]++;
-            }
-
-            return distribution;
-        }
-
-        private AccommodationSearchResponseDTO CreateEmptySearchResponse(AccommodationSearchRequestDTO searchRequest, string searchId, TimeSpan duration)
+        private AccommodationSearchResponseDTO CreateEmptySearchResponse(
+            AccommodationSearchRequestDTO searchRequest, 
+            string searchId, 
+            TimeSpan duration)
         {
             return new AccommodationSearchResponseDTO
             {
@@ -775,7 +597,6 @@ namespace visita_booking_api.Services.Implementation
                 throw new ArgumentException("Page size must be between 1 and 50");
         }
 
-        // Placeholder implementations for interface methods
         public async Task<List<AccommodationQuickSearchResultDTO>> QuickSearchAccommodationsAsync(string searchTerm, int limit = 10)
         {
             try
@@ -840,7 +661,6 @@ namespace visita_booking_api.Services.Implementation
             {
                 var searchTerm = query.ToLower().Trim();
                 
-                // Get matching accommodation names
                 var accommodationNames = await _context.Accommodations
                     .Where(a => a.Status == Models.Enums.AccommodationStatus.Approved && a.Name.ToLower().Contains(searchTerm))
                     .Select(a => a.Name)
@@ -849,7 +669,6 @@ namespace visita_booking_api.Services.Implementation
                     .OrderBy(name => name)
                     .ToListAsync();
 
-                // Get popular amenities for matching accommodations
                 var popularAmenities = await _context.Accommodations
                     .Where(a => a.Status == Models.Enums.AccommodationStatus.Approved && a.Name.ToLower().Contains(searchTerm))
                     .SelectMany(a => a.Rooms)
@@ -861,7 +680,6 @@ namespace visita_booking_api.Services.Implementation
                     .Select(g => g.Key)
                     .ToListAsync();
 
-                // Get popular price ranges (simplified)
                 var popularPrices = await _context.Accommodations
                     .Where(a => a.Status == Models.Enums.AccommodationStatus.Approved && a.Name.ToLower().Contains(searchTerm))
                     .SelectMany(a => a.Rooms)
@@ -876,7 +694,7 @@ namespace visita_booking_api.Services.Implementation
                     AccommodationNames = accommodationNames,
                     PopularAmenities = popularAmenities,
                     PopularPriceRanges = popularPrices,
-                    Locations = new List<string>() // Can be expanded if location data is available
+                    Locations = new List<string>()
                 };
             }
             catch (Exception ex)
@@ -899,11 +717,9 @@ namespace visita_booking_api.Services.Implementation
                 _logger.LogInformation("Starting accommodation cache warmup process");
                 var stopwatch = Stopwatch.StartNew();
 
-                // Get common search patterns for the next 30 days
                 var today = DateTime.Today;
                 var endDate = today.AddDays(30);
 
-                // Common search scenarios to pre-cache
                 var commonSearches = new List<AccommodationSearchRequestDTO>
                 {
                     new AccommodationSearchRequestDTO
@@ -932,7 +748,6 @@ namespace visita_booking_api.Services.Implementation
                     }
                 };
 
-                // Execute searches to populate cache
                 var cacheWarmupTasks = commonSearches.Select(async searchRequest =>
                 {
                     try

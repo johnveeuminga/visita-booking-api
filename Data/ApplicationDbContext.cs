@@ -22,8 +22,10 @@ namespace VisitaBookingApi.Data
         
         // Accommodation management entities
         public DbSet<Accommodation> Accommodations { get; set; }
-
-        // Room management entities
+// Accommodation comment
+         public DbSet<AccommodationComment> AccommodationComments { get; set; }
+        
+         // Room management entities
         public DbSet<Room> Rooms { get; set; }
         public DbSet<RoomPhoto> RoomPhotos { get; set; }
         public DbSet<Amenity> Amenities { get; set; }
@@ -500,10 +502,35 @@ namespace VisitaBookingApi.Data
                     .HasForeignKey(bal => bal.ReservationId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
+             // AccommodationComment entity configuration
+            // Internal admin notes only - not visible to accommodation owners
+            modelBuilder.Entity<AccommodationComment>(entity =>
+            {
+                entity.HasKey(ac => ac.Id);
+                entity.Property(ac => ac.Comment).IsRequired().HasMaxLength(2000);
+                entity.HasIndex(ac => ac.AccommodationId);
+                entity.HasIndex(ac => ac.AdminId);
+                entity.HasIndex(ac => ac.CreatedAt);
+
+                // Foreign key relationships
+                entity.HasOne(ac => ac.Accommodation)
+                    .WithMany(a => a.Comments)
+                    .HasForeignKey(ac => ac.AccommodationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(ac => ac.Admin)
+                    .WithMany()
+                    .HasForeignKey(ac => ac.AdminId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+        
 
             // Seed default amenities
             SeedAmenities(modelBuilder);
         }
+
+
+           
 
         private static void SeedAmenities(ModelBuilder modelBuilder)
         {
