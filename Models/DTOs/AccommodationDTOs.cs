@@ -97,6 +97,7 @@ namespace visita_booking_api.Models.DTOs
         public bool IsActive { get; set; }
         public string Status { get; set; } = "Pending";
         public int ActiveRoomCount { get; set; }
+        public int CommentCount { get; set; }
         // Optional list of accommodation photo URLs. Currently may include Logo when no dedicated photos exist.
         public List<string> PhotoUrls { get; set; } = new();
     }

@@ -76,6 +76,8 @@ namespace visita_booking_api.Models.Entities
         public virtual VisitaBookingApi.Models.User? ApprovedBy { get; set; }
 
     public virtual ICollection<Room> Rooms { get; set; } = new List<Room>();
+        public virtual ICollection<AccommodationComment> Comments { get; set; } = new List<AccommodationComment>();
+
 
         public void UpdateTimestamp()
         {
