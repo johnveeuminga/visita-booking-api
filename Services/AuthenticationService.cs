@@ -1,14 +1,14 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Google.Apis.Auth;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using VisitaBookingApi.Data;
 using VisitaBookingApi.Models;
 using VisitaBookingApi.Models.DTOs;
 using VisitaBookingApi.Services.Interfaces;
-using Google.Apis.Auth;
 
 namespace VisitaBookingApi.Services
 {
@@ -23,7 +23,8 @@ namespace VisitaBookingApi.Services
             ApplicationDbContext context,
             IConfiguration configuration,
             ILogger<AuthenticationService> logger,
-            visita_booking_api.Services.Interfaces.IEmailService emailService)
+            visita_booking_api.Services.Interfaces.IEmailService emailService
+        )
         {
             _context = context;
             _configuration = configuration;
@@ -36,8 +37,8 @@ namespace VisitaBookingApi.Services
             try
             {
                 // Find user by email
-                var user = await _context.Users
-                    .Include(u => u.UserRoles)
+                var user = await _context
+                    .Users.Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                     .FirstOrDefaultAsync(u => u.Email == request.Email);
 
@@ -46,17 +47,20 @@ namespace VisitaBookingApi.Services
                     return new AuthResponse
                     {
                         Success = false,
-                        Message = "Invalid email or password."
+                        Message = "Invalid email or password.",
                     };
                 }
 
                 // Verify password
-                if (string.IsNullOrEmpty(user.PasswordHash) || !VerifyPassword(request.Password, user.PasswordHash))
+                if (
+                    string.IsNullOrEmpty(user.PasswordHash)
+                    || !VerifyPassword(request.Password, user.PasswordHash)
+                )
                 {
                     return new AuthResponse
                     {
                         Success = false,
-                        Message = "Invalid email or password."
+                        Message = "Invalid email or password.",
                     };
                 }
 
@@ -75,7 +79,7 @@ namespace VisitaBookingApi.Services
                     User = MapToUserDto(user),
                     AccessToken = accessToken.Token,
                     RefreshToken = refreshToken,
-                    TokenExpiry = accessToken.Expiry
+                    TokenExpiry = accessToken.Expiry,
                 };
             }
             catch (Exception ex)
@@ -84,7 +88,7 @@ namespace VisitaBookingApi.Services
                 return new AuthResponse
                 {
                     Success = false,
-                    Message = "An error occurred during login."
+                    Message = "An error occurred during login.",
                 };
             }
         }
@@ -99,7 +103,7 @@ namespace VisitaBookingApi.Services
                     return new AuthResponse
                     {
                         Success = false,
-                        Message = "User with this email already exists."
+                        Message = "User with this email already exists.",
                     };
                 }
 
@@ -110,7 +114,8 @@ namespace VisitaBookingApi.Services
                     return new AuthResponse
                     {
                         Success = false,
-                        Message = "Guest role not found. Please ensure roles are properly configured."
+                        Message =
+                            "Guest role not found. Please ensure roles are properly configured.",
                     };
                 }
 
@@ -123,7 +128,7 @@ namespace VisitaBookingApi.Services
                     PasswordHash = HashPassword(request.Password),
                     Provider = "Local",
                     IsActive = true,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
                 };
 
                 _context.Users.Add(user);
@@ -134,15 +139,15 @@ namespace VisitaBookingApi.Services
                 {
                     UserId = user.Id,
                     RoleId = role.Id,
-                    AssignedAt = DateTime.UtcNow
+                    AssignedAt = DateTime.UtcNow,
                 };
 
                 _context.UserRoles.Add(userRole);
                 await _context.SaveChangesAsync();
 
                 // Reload user with roles
-                user = await _context.Users
-                    .Include(u => u.UserRoles)
+                user = await _context
+                    .Users.Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                     .FirstAsync(u => u.Id == user.Id);
 
@@ -157,7 +162,7 @@ namespace VisitaBookingApi.Services
                     User = MapToUserDto(user),
                     AccessToken = accessToken.Token,
                     RefreshToken = refreshToken,
-                    TokenExpiry = accessToken.Expiry
+                    TokenExpiry = accessToken.Expiry,
                 };
             }
             catch (Exception ex)
@@ -166,7 +171,7 @@ namespace VisitaBookingApi.Services
                 return new AuthResponse
                 {
                     Success = false,
-                    Message = "An error occurred during registration."
+                    Message = "An error occurred during registration.",
                 };
             }
         }
@@ -177,32 +182,36 @@ namespace VisitaBookingApi.Services
             {
                 // Verify Google ID token
                 var payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken);
-                
+
                 if (payload == null)
                 {
                     return new AuthResponse
                     {
                         Success = false,
-                        Message = "Invalid Google ID token."
+                        Message = "Invalid Google ID token.",
                     };
                 }
 
                 // Check if user exists
-                var user = await _context.Users
-                    .Include(u => u.UserRoles)
+                var user = await _context
+                    .Users.Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
-                    .FirstOrDefaultAsync(u => u.Email == payload.Email || u.ExternalId == payload.Subject);
+                    .FirstOrDefaultAsync(u =>
+                        u.Email == payload.Email || u.ExternalId == payload.Subject
+                    );
 
                 if (user == null)
                 {
                     // Create new user
-                    var role = await _context.Roles.FirstOrDefaultAsync(r => r.Name == request.Role);
+                    var role = await _context.Roles.FirstOrDefaultAsync(r =>
+                        r.Name == request.Role
+                    );
                     if (role == null)
                     {
                         return new AuthResponse
                         {
                             Success = false,
-                            Message = "Invalid role specified."
+                            Message = "Invalid role specified.",
                         };
                     }
 
@@ -215,7 +224,7 @@ namespace VisitaBookingApi.Services
                         Provider = "Google",
                         IsEmailVerified = payload.EmailVerified,
                         IsActive = true,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.UtcNow,
                     };
 
                     _context.Users.Add(user);
@@ -226,15 +235,15 @@ namespace VisitaBookingApi.Services
                     {
                         UserId = user.Id,
                         RoleId = role.Id,
-                        AssignedAt = DateTime.UtcNow
+                        AssignedAt = DateTime.UtcNow,
                     };
 
                     _context.UserRoles.Add(userRole);
                     await _context.SaveChangesAsync();
 
                     // Reload user with roles
-                    user = await _context.Users
-                        .Include(u => u.UserRoles)
+                    user = await _context
+                        .Users.Include(u => u.UserRoles)
                         .ThenInclude(ur => ur.Role)
                         .FirstAsync(u => u.Id == user.Id);
                 }
@@ -260,7 +269,7 @@ namespace VisitaBookingApi.Services
                     User = MapToUserDto(user),
                     AccessToken = accessToken.Token,
                     RefreshToken = refreshToken,
-                    TokenExpiry = accessToken.Expiry
+                    TokenExpiry = accessToken.Expiry,
                 };
             }
             catch (Exception ex)
@@ -269,7 +278,7 @@ namespace VisitaBookingApi.Services
                 return new AuthResponse
                 {
                     Success = false,
-                    Message = "An error occurred during Google authentication."
+                    Message = "An error occurred during Google authentication.",
                 };
             }
         }
@@ -278,8 +287,8 @@ namespace VisitaBookingApi.Services
         {
             try
             {
-                var refreshToken = await _context.RefreshTokens
-                    .Include(rt => rt.User)
+                var refreshToken = await _context
+                    .RefreshTokens.Include(rt => rt.User)
                     .ThenInclude(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                     .FirstOrDefaultAsync(rt => rt.Token == request.RefreshToken && !rt.IsRevoked);
@@ -289,7 +298,7 @@ namespace VisitaBookingApi.Services
                     return new AuthResponse
                     {
                         Success = false,
-                        Message = "Invalid or expired refresh token."
+                        Message = "Invalid or expired refresh token.",
                     };
                 }
 
@@ -308,7 +317,7 @@ namespace VisitaBookingApi.Services
                     User = MapToUserDto(refreshToken.User),
                     AccessToken = accessToken.Token,
                     RefreshToken = newRefreshToken,
-                    TokenExpiry = accessToken.Expiry
+                    TokenExpiry = accessToken.Expiry,
                 };
             }
             catch (Exception ex)
@@ -317,7 +326,7 @@ namespace VisitaBookingApi.Services
                 return new AuthResponse
                 {
                     Success = false,
-                    Message = "An error occurred during token refresh."
+                    Message = "An error occurred during token refresh.",
                 };
             }
         }
@@ -335,55 +344,75 @@ namespace VisitaBookingApi.Services
                     {
                         Success = true,
                         Message = "Password reset email sent if account exists.",
-                        Data = true
+                        Data = true,
                     };
                 }
 
                 // Generate secure token (URL-safe)
                 var tokenBytes = RandomNumberGenerator.GetBytes(48);
-                var token = Convert.ToBase64String(tokenBytes).Replace("+", "-").Replace("/", "_").TrimEnd('=');
+                var token = Convert
+                    .ToBase64String(tokenBytes)
+                    .Replace("+", "-")
+                    .Replace("/", "_")
+                    .TrimEnd('=');
 
                 user.PasswordResetToken = token;
                 user.PasswordResetTokenExpiry = DateTime.UtcNow.AddHours(1); // 1 hour expiry
                 await _context.SaveChangesAsync();
 
                 // Build reset link using frontend settings if available
-                var frontendBase = _configuration["Frontend:BaseUrl"] ?? _configuration["Frontend:Url"];
+                var frontendBase =
+                    _configuration["Frontend:BaseUrl"] ?? _configuration["Frontend:Url"];
                 if (string.IsNullOrEmpty(frontendBase))
                 {
                     // Fallback to an API route that the frontend could call
-                    frontendBase = _configuration["App:BaseUrl"] ?? "https://your-frontend.example/reset-password";
+                    frontendBase =
+                        _configuration["App:BaseUrl"]
+                        ?? "https://your-frontend.example/reset-password";
                 }
 
                 // Ensure trailing slash handling
                 var separator = frontendBase.EndsWith("/") ? string.Empty : "/";
-                var resetLink = $"{frontendBase}{separator}auth/reset-password?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(token)}";
+                var resetLink =
+                    $"{frontendBase}{separator}auth/reset-password?email={Uri.EscapeDataString(user.Email)}&token={Uri.EscapeDataString(token)}";
 
                 // Send email (fire-and-forget best-effort)
                 try
                 {
-                    await _emailService.SendPasswordResetEmailAsync(user.Email, user.FullName, resetLink);
+                    await _emailService.SendPasswordResetEmailAsync(
+                        user.Email,
+                        user.FullName,
+                        resetLink
+                    );
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to send password reset email to {Email}", user.Email);
+                    _logger.LogError(
+                        ex,
+                        "Failed to send password reset email to {Email}",
+                        user.Email
+                    );
                 }
 
                 return new ApiResponse<bool>
                 {
                     Success = true,
                     Message = "Password reset email sent if account exists.",
-                    Data = true
+                    Data = true,
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in ForgotPasswordAsync for email {Email}", request.Email);
+                _logger.LogError(
+                    ex,
+                    "Error in ForgotPasswordAsync for email {Email}",
+                    request.Email
+                );
                 return new ApiResponse<bool>
                 {
                     Success = false,
                     Message = "An error occurred while processing the forgot password request.",
-                    Data = false
+                    Data = false,
                 };
             }
         }
@@ -400,17 +429,21 @@ namespace VisitaBookingApi.Services
                     {
                         Success = false,
                         Message = "Invalid token or email.",
-                        Data = false
+                        Data = false,
                     };
                 }
 
-                if (string.IsNullOrEmpty(user.PasswordResetToken) || user.PasswordResetTokenExpiry == null || user.PasswordResetTokenExpiry < DateTime.UtcNow)
+                if (
+                    string.IsNullOrEmpty(user.PasswordResetToken)
+                    || user.PasswordResetTokenExpiry == null
+                    || user.PasswordResetTokenExpiry < DateTime.UtcNow
+                )
                 {
                     return new ApiResponse<bool>
                     {
                         Success = false,
                         Message = "Reset token is invalid or has expired.",
-                        Data = false
+                        Data = false,
                     };
                 }
 
@@ -420,7 +453,7 @@ namespace VisitaBookingApi.Services
                     {
                         Success = false,
                         Message = "Invalid reset token.",
-                        Data = false
+                        Data = false,
                     };
                 }
 
@@ -435,17 +468,21 @@ namespace VisitaBookingApi.Services
                 {
                     Success = true,
                     Message = "Password reset successfully.",
-                    Data = true
+                    Data = true,
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in ResetPasswordAsync for email {Email}", request.Email);
+                _logger.LogError(
+                    ex,
+                    "Error in ResetPasswordAsync for email {Email}",
+                    request.Email
+                );
                 return new ApiResponse<bool>
                 {
                     Success = false,
                     Message = "An error occurred while resetting the password.",
-                    Data = false
+                    Data = false,
                 };
             }
         }
@@ -458,7 +495,7 @@ namespace VisitaBookingApi.Services
             {
                 Success = true,
                 Message = "Email verified successfully.",
-                Data = true
+                Data = true,
             };
         }
 
@@ -466,8 +503,9 @@ namespace VisitaBookingApi.Services
         {
             try
             {
-                var token = await _context.RefreshTokens
-                    .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
+                var token = await _context.RefreshTokens.FirstOrDefaultAsync(rt =>
+                    rt.Token == refreshToken
+                );
 
                 if (token != null)
                 {
@@ -479,7 +517,7 @@ namespace VisitaBookingApi.Services
                 {
                     Success = true,
                     Message = "Logged out successfully.",
-                    Data = true
+                    Data = true,
                 };
             }
             catch (Exception ex)
@@ -489,7 +527,7 @@ namespace VisitaBookingApi.Services
                 {
                     Success = false,
                     Message = "An error occurred during logout.",
-                    Data = false
+                    Data = false,
                 };
             }
         }
@@ -498,8 +536,8 @@ namespace VisitaBookingApi.Services
         {
             try
             {
-                var tokens = await _context.RefreshTokens
-                    .Where(rt => rt.UserId == userId && !rt.IsRevoked)
+                var tokens = await _context
+                    .RefreshTokens.Where(rt => rt.UserId == userId && !rt.IsRevoked)
                     .ToListAsync();
 
                 foreach (var token in tokens)
@@ -513,7 +551,7 @@ namespace VisitaBookingApi.Services
                 {
                     Success = true,
                     Message = "All tokens revoked successfully.",
-                    Data = true
+                    Data = true,
                 };
             }
             catch (Exception ex)
@@ -523,7 +561,7 @@ namespace VisitaBookingApi.Services
                 {
                     Success = false,
                     Message = "An error occurred while revoking tokens.",
-                    Data = false
+                    Data = false,
                 };
             }
         }
@@ -532,8 +570,8 @@ namespace VisitaBookingApi.Services
         {
             try
             {
-                var user = await _context.Users
-                    .Include(u => u.UserRoles)
+                var user = await _context
+                    .Users.Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                     .FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
 
@@ -551,14 +589,21 @@ namespace VisitaBookingApi.Services
             }
         }
 
-        public async Task<visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>> GetUsersAsync(int page = 1, int pageSize = 20, string? q = null, string? role = null)
+        public async Task<visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>> GetUsersAsync(
+            int page = 1,
+            int pageSize = 20,
+            string? q = null,
+            string? role = null
+        )
         {
             // Ensure sensible bounds
-            if (page < 1) page = 1;
-            if (pageSize < 1 || pageSize > 200) pageSize = 20;
+            if (page < 1)
+                page = 1;
+            if (pageSize < 1 || pageSize > 200)
+                pageSize = 20;
 
-            var query = _context.Users
-                .Include(u => u.UserRoles)
+            var query = _context
+                .Users.Include(u => u.UserRoles)
                 .ThenInclude(ur => ur.Role)
                 .AsNoTracking()
                 .Where(u => u.IsActive);
@@ -568,10 +613,11 @@ namespace VisitaBookingApi.Services
             {
                 var searchTerm = q.Trim().ToLowerInvariant();
                 query = query.Where(u =>
-                    u.Email.ToLower().Contains(searchTerm) ||
-                    (u.FirstName + " " + u.LastName).ToLower().Contains(searchTerm) ||
-                    u.FirstName.ToLower().Contains(searchTerm) ||
-                    u.LastName.ToLower().Contains(searchTerm));
+                    u.Email.ToLower().Contains(searchTerm)
+                    || (u.FirstName + " " + u.LastName).ToLower().Contains(searchTerm)
+                    || u.FirstName.ToLower().Contains(searchTerm)
+                    || u.LastName.ToLower().Contains(searchTerm)
+                );
             }
 
             if (!string.IsNullOrEmpty(role))
@@ -585,38 +631,41 @@ namespace VisitaBookingApi.Services
 
             var totalCount = await query.CountAsync();
 
-            var users = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
+            var users = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
-            var items = users.Select(u => new UserListItemDto
-            {
-                Id = u.Id,
-                Email = u.Email,
-                FullName = u.FullName,
-                IsActive = u.IsActive,
-                Roles = u.UserRoles.Select(ur => ur.Role.Name).ToList(),
-                CreatedAt = u.CreatedAt
-            }).ToList();
+            var items = users
+                .Select(u => new UserListItemDto
+                {
+                    Id = u.Id,
+                    Email = u.Email,
+                    FullName = u.FullName,
+                    IsActive = u.IsActive,
+                    Roles = u.UserRoles.Select(ur => ur.Role.Name).ToList(),
+                    CreatedAt = u.CreatedAt,
+                })
+                .ToList();
 
-            return visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>.Create(items, totalCount, page, pageSize);
+            return visita_booking_api.Models.DTOs.PaginatedResponse<UserListItemDto>.Create(
+                items,
+                totalCount,
+                page,
+                pageSize
+            );
         }
 
         public async Task<List<RoleDto>> GetAllRolesAsync()
         {
-            var roles = await _context.Roles
-                .AsNoTracking()
-                .OrderBy(r => r.Name)
-                .ToListAsync();
+            var roles = await _context.Roles.AsNoTracking().OrderBy(r => r.Name).ToListAsync();
 
-            return roles.Select(r => new RoleDto
-            {
-                Id = r.Id,
-                Name = r.Name,
-                Description = r.Description,
-                CreatedAt = r.CreatedAt
-            }).ToList();
+            return roles
+                .Select(r => new RoleDto
+                {
+                    Id = r.Id,
+                    Name = r.Name,
+                    Description = r.Description,
+                    CreatedAt = r.CreatedAt,
+                })
+                .ToList();
         }
 
         #region Private Methods
@@ -635,14 +684,16 @@ namespace VisitaBookingApi.Services
         {
             var jwtSettings = _configuration.GetSection("JWT");
             var key = Encoding.ASCII.GetBytes(jwtSettings["Secret"] ?? "your-256-bit-secret");
-            var expiry = DateTime.UtcNow.AddMinutes(int.Parse(jwtSettings["AccessTokenExpiryMinutes"] ?? "60"));
+            var expiry = DateTime.UtcNow.AddMinutes(
+                int.Parse(jwtSettings["AccessTokenExpiryMinutes"] ?? "60")
+            );
 
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
                 new Claim(ClaimTypes.Name, user.FullName),
-                new Claim("provider", user.Provider)
+                new Claim("provider", user.Provider),
             };
 
             // Add role claims
@@ -655,9 +706,12 @@ namespace VisitaBookingApi.Services
             {
                 Subject = new ClaimsIdentity(claims),
                 Expires = expiry,
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
+                SigningCredentials = new SigningCredentials(
+                    new SymmetricSecurityKey(key),
+                    SecurityAlgorithms.HmacSha256Signature
+                ),
                 Issuer = jwtSettings["Issuer"],
-                Audience = jwtSettings["Audience"]
+                Audience = jwtSettings["Audience"],
             };
 
             var tokenHandler = new JwtSecurityTokenHandler();
@@ -672,8 +726,10 @@ namespace VisitaBookingApi.Services
             {
                 Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
                 UserId = userId,
-                ExpiryDate = DateTime.UtcNow.AddDays(int.Parse(_configuration["JWT:RefreshTokenExpiryDays"] ?? "30")),
-                CreatedAt = DateTime.UtcNow
+                ExpiryDate = DateTime.UtcNow.AddDays(
+                    int.Parse(_configuration["JWT:RefreshTokenExpiryDays"] ?? "30")
+                ),
+                CreatedAt = DateTime.UtcNow,
             };
 
             _context.RefreshTokens.Add(refreshToken);
@@ -696,7 +752,7 @@ namespace VisitaBookingApi.Services
                 IsActive = user.IsActive,
                 Roles = user.UserRoles.Select(ur => ur.Role.Name).ToList(),
                 CreatedAt = user.CreatedAt,
-                LastLoginAt = user.LastLoginAt
+                LastLoginAt = user.LastLoginAt,
             };
         }
 
@@ -705,42 +761,46 @@ namespace VisitaBookingApi.Services
             try
             {
                 // Validate that the user exists
-                var user = await _context.Users
-                    .Include(u => u.UserRoles)
+                var user = await _context
+                    .Users.Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                     .FirstOrDefaultAsync(u => u.Id == request.UserId);
-                
+
                 if (user == null)
                 {
                     return new ApiResponse<bool>
                     {
                         Success = false,
                         Message = "User not found.",
-                        Data = false
+                        Data = false,
                     };
                 }
 
                 // Validate that the new role exists
-                var newRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == request.NewRole);
+                var newRole = await _context.Roles.FirstOrDefaultAsync(r =>
+                    r.Name == request.NewRole
+                );
                 if (newRole == null)
                 {
                     return new ApiResponse<bool>
                     {
                         Success = false,
                         Message = "Invalid role specified.",
-                        Data = false
+                        Data = false,
                     };
                 }
 
                 // Check if user already has this role
-                var existingUserRole = user.UserRoles.FirstOrDefault(ur => ur.Role.Name == request.NewRole);
+                var existingUserRole = user.UserRoles.FirstOrDefault(ur =>
+                    ur.Role.Name == request.NewRole
+                );
                 if (existingUserRole != null)
                 {
                     return new ApiResponse<bool>
                     {
                         Success = false,
                         Message = $"User already has the {request.NewRole} role.",
-                        Data = false
+                        Data = false,
                     };
                 }
 
@@ -749,33 +809,98 @@ namespace VisitaBookingApi.Services
                 {
                     UserId = user.Id,
                     RoleId = newRole.Id,
-                    AssignedAt = DateTime.UtcNow
+                    AssignedAt = DateTime.UtcNow,
                 };
 
                 _context.UserRoles.Add(userRole);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("Role {NewRole} assigned to user {UserId} by admin", request.NewRole, request.UserId);
+                _logger.LogInformation(
+                    "Role {NewRole} assigned to user {UserId} by admin",
+                    request.NewRole,
+                    request.UserId
+                );
 
                 return new ApiResponse<bool>
                 {
                     Success = true,
                     Message = $"Successfully assigned {request.NewRole} role to user.",
-                    Data = true
+                    Data = true,
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error assigning role {Role} to user {UserId}", request.NewRole, request.UserId);
+                _logger.LogError(
+                    ex,
+                    "Error assigning role {Role} to user {UserId}",
+                    request.NewRole,
+                    request.UserId
+                );
                 return new ApiResponse<bool>
                 {
                     Success = false,
                     Message = "An error occurred while assigning the role.",
-                    Data = false
+                    Data = false,
                 };
             }
         }
 
+        public async Task<ApiResponse<bool>> ChangePasswordAsync(
+            int userId,
+            ChangePasswordRequest request
+        )
+        {
+            try
+            {
+                var user = await _context.Users.FindAsync(userId);
+
+                if (user == null)
+                {
+                    return new ApiResponse<bool>
+                    {
+                        Success = false,
+                        Message = "User not found.",
+                        Data = false,
+                    };
+                }
+
+                // Verify current password
+                if (!VerifyPassword(request.CurrentPassword, user.PasswordHash))
+                {
+                    return new ApiResponse<bool>
+                    {
+                        Success = false,
+                        Message = "Current password is incorrect.",
+                        Data = false,
+                    };
+                }
+
+                // Update to new password
+                user.PasswordHash = HashPassword(request.NewPassword);
+                // user.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation("Password changed successfully for user {UserId}", userId);
+
+                return new ApiResponse<bool>
+                {
+                    Success = true,
+                    Message = "Password changed successfully.",
+                    Data = true,
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error changing password for user {UserId}", userId);
+                return new ApiResponse<bool>
+                {
+                    Success = false,
+                    Message = "An error occurred while changing password.",
+                    Data = false,
+                };
+            }
+        }
         #endregion
     }
 }

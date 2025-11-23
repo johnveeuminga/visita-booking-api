@@ -1,10 +1,11 @@
+using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SendGrid;
 using SendGrid.Helpers.Mail;
-using System.Text;
 using visita_booking_api.Models.Entities;
 using visita_booking_api.Services.Interfaces;
+using VisitaBookingApi.Models;
 
 namespace visita_booking_api.Services.Implementation
 {
@@ -13,18 +14,28 @@ namespace visita_booking_api.Services.Implementation
         private readonly IConfiguration _configuration;
         private readonly ILogger<SendGridEmailService> _logger;
 
-        public SendGridEmailService(IConfiguration configuration, ILogger<SendGridEmailService> logger)
+        public SendGridEmailService(
+            IConfiguration configuration,
+            ILogger<SendGridEmailService> logger
+        )
         {
             _configuration = configuration;
             _logger = logger;
         }
 
-        public async Task SendBookingConfirmationAsync(Booking booking, decimal roomPrice, decimal adminFee)
+        public async Task SendBookingConfirmationAsync(
+            Booking booking,
+            decimal roomPrice,
+            decimal adminFee
+        )
         {
             var apiKey = _configuration["SendGrid:ApiKey"];
             if (string.IsNullOrEmpty(apiKey))
             {
-                _logger.LogWarning("SendGrid API key not configured; skipping booking confirmation email for booking {BookingId}", booking.Id);
+                _logger.LogWarning(
+                    "SendGrid API key not configured; skipping booking confirmation email for booking {BookingId}",
+                    booking.Id
+                );
                 return;
             }
 
@@ -70,11 +81,19 @@ namespace visita_booking_api.Services.Implementation
             try
             {
                 var response = await client.SendEmailAsync(msg);
-                _logger.LogInformation("Sent booking confirmation email for booking {BookingId} with status {StatusCode}", booking.Id, response.StatusCode);
+                _logger.LogInformation(
+                    "Sent booking confirmation email for booking {BookingId} with status {StatusCode}",
+                    booking.Id,
+                    response.StatusCode
+                );
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send booking confirmation email for booking {BookingId}", booking.Id);
+                _logger.LogError(
+                    ex,
+                    "Failed to send booking confirmation email for booking {BookingId}",
+                    booking.Id
+                );
             }
 
             // Send notification to accommodation owner (if available)
@@ -113,21 +132,37 @@ namespace visita_booking_api.Services.Implementation
                     ownerMsg.AddContent(MimeType.Text, ob.ToString());
 
                     var ownerResp = await client.SendEmailAsync(ownerMsg);
-                    _logger.LogInformation("Sent accommodation notification email for booking {BookingId} to {Email} with status {StatusCode}", booking.Id, accomEmail, ownerResp.StatusCode);
+                    _logger.LogInformation(
+                        "Sent accommodation notification email for booking {BookingId} to {Email} with status {StatusCode}",
+                        booking.Id,
+                        accomEmail,
+                        ownerResp.StatusCode
+                    );
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send accommodation notification email for booking {BookingId}", booking.Id);
+                _logger.LogError(
+                    ex,
+                    "Failed to send accommodation notification email for booking {BookingId}",
+                    booking.Id
+                );
             }
         }
 
-        public async Task SendPasswordResetEmailAsync(string toEmail, string toName, string resetLink)
+        public async Task SendPasswordResetEmailAsync(
+            string toEmail,
+            string toName,
+            string resetLink
+        )
         {
             var apiKey = _configuration["SendGrid:ApiKey"];
             if (string.IsNullOrEmpty(apiKey))
             {
-                _logger.LogWarning("SendGrid API key not configured; skipping password reset email to {Email}", toEmail);
+                _logger.LogWarning(
+                    "SendGrid API key not configured; skipping password reset email to {Email}",
+                    toEmail
+                );
                 return;
             }
 
@@ -146,11 +181,15 @@ namespace visita_booking_api.Services.Implementation
             var builder = new StringBuilder();
             builder.AppendLine($"Hello {toName},");
             builder.AppendLine();
-            builder.AppendLine("We received a request to reset your password. Click the link below to set a new password. This link will expire in 1 hour.");
+            builder.AppendLine(
+                "We received a request to reset your password. Click the link below to set a new password. This link will expire in 1 hour."
+            );
             builder.AppendLine();
             builder.AppendLine(resetLink);
             builder.AppendLine();
-            builder.AppendLine("If you didn't request a password reset, you can safely ignore this email.");
+            builder.AppendLine(
+                "If you didn't request a password reset, you can safely ignore this email."
+            );
             builder.AppendLine();
             builder.AppendLine("Thanks,\nThe Visita Team");
 
@@ -159,11 +198,100 @@ namespace visita_booking_api.Services.Implementation
             try
             {
                 var response = await client.SendEmailAsync(msg);
-                _logger.LogInformation("Sent password reset email to {Email} with status {StatusCode}", toEmail, response.StatusCode);
+                _logger.LogInformation(
+                    "Sent password reset email to {Email} with status {StatusCode}",
+                    toEmail,
+                    response.StatusCode
+                );
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send password reset email to {Email}", toEmail);
+            }
+        }
+
+        public async Task SendNewAccommodationAlertToAdminsAsync(
+            Accommodation accommodation,
+            User owner
+        )
+        {
+            var apiKey = _configuration["SendGrid:ApiKey"];
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                _logger.LogWarning(
+                    "SendGrid API key not configured; skipping admin notification for accommodation {AccommodationId}",
+                    accommodation.Id
+                );
+                return;
+            }
+
+            var client = new SendGridClient(apiKey);
+
+            var fromEmail = _configuration["SendGrid:FromEmail"] ?? "no-reply@visita.example";
+            var fromName = _configuration["SendGrid:FromName"] ?? "Visita";
+
+            var adminEmails = new List<string>
+            {
+                "jragudo311@gmail.com",
+                "rapada.jhoniel@gmail.com",
+            };
+
+            foreach (var adminEmail in adminEmails)
+            {
+                if (string.IsNullOrWhiteSpace(adminEmail))
+                    continue;
+
+                var msg = new SendGridMessage();
+                msg.SetFrom(new EmailAddress(fromEmail, fromName));
+                msg.AddTo(new EmailAddress(adminEmail));
+                msg.SetSubject("🏨 New Accommodation Registration - Pending Approval");
+
+                var builder = new StringBuilder();
+                builder.AppendLine("New Accommodation Registered");
+                builder.AppendLine();
+                builder.AppendLine(
+                    "A new accommodation has been registered on Visita Booking and requires your approval."
+                );
+                builder.AppendLine();
+                builder.AppendLine("=== Accommodation Details ===");
+                builder.AppendLine($"Name: {accommodation.Name}");
+                builder.AppendLine($"Location: {accommodation.Address ?? "Not specified"}");
+                builder.AppendLine($"Address: {accommodation.Address ?? "Not specified"}");
+                builder.AppendLine($"Status: Pending Approval");
+                builder.AppendLine();
+                builder.AppendLine("=== Registered By (Hotel Manager) ===");
+                builder.AppendLine($"Name: {owner.FirstName} {owner.LastName}");
+                builder.AppendLine($"Email: {owner.Email}");
+                builder.AppendLine();
+                builder.AppendLine("Please review and approve this accommodation at:");
+                builder.AppendLine(
+                    "https://booking.baguio.visita.ph/admin/accommodations?status=pending"
+                );
+                builder.AppendLine();
+                builder.AppendLine("---");
+                builder.AppendLine("This is an automated notification from Visita Booking System.");
+
+                msg.AddContent(MimeType.Text, builder.ToString());
+
+                try
+                {
+                    var response = await client.SendEmailAsync(msg);
+                    _logger.LogInformation(
+                        "Sent admin notification email for accommodation {AccommodationId} to {AdminEmail} with status {StatusCode}",
+                        accommodation.Id,
+                        adminEmail,
+                        response.StatusCode
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to send admin notification email for accommodation {AccommodationId} to {AdminEmail}",
+                        accommodation.Id,
+                        adminEmail
+                    );
+                }
             }
         }
     }

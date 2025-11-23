@@ -1,14 +1,13 @@
 using Microsoft.EntityFrameworkCore;
-using VisitaBookingApi.Models;
 using visita_booking_api.Models.Entities;
+using VisitaBookingApi.Models;
 
 namespace VisitaBookingApi.Data
 {
     public class ApplicationDbContext : DbContext
     {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
-        {
-        }
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+            : base(options) { }
 
         // RBAC entities
         public DbSet<User> Users { get; set; }
@@ -19,9 +18,14 @@ namespace VisitaBookingApi.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<UserSession> UserSessions { get; set; }
 
-        
         // Accommodation management entities
         public DbSet<Accommodation> Accommodations { get; set; }
+        public DbSet<AccommodationComment> AccommodationComments { get; set; }
+
+        // Establishment management entities
+        public DbSet<Establishment> Establishments { get; set; }
+        public DbSet<EstablishmentComment> EstablishmentComments { get; set; }
+        public DbSet<EstablishmentHours> EstablishmentHours { get; set; }
 
         // Room management entities
         public DbSet<Room> Rooms { get; set; }
@@ -70,72 +74,116 @@ namespace VisitaBookingApi.Data
             modelBuilder.Entity<UserRole>(entity =>
             {
                 entity.HasKey(ur => new { ur.UserId, ur.RoleId });
-                
-                entity.HasOne(ur => ur.User)
+
+                entity
+                    .HasOne(ur => ur.User)
                     .WithMany(u => u.UserRoles)
                     .HasForeignKey(ur => ur.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
-                
-                entity.HasOne(ur => ur.Role)
+
+                entity
+                    .HasOne(ur => ur.Role)
                     .WithMany(r => r.UserRoles)
                     .HasForeignKey(ur => ur.RoleId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
             // Seed default roles
-            modelBuilder.Entity<Role>().HasData(
-                new Role { Id = 1, Name = "Guest", Description = "Regular guest users", CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new Role { Id = 2, Name = "Hotel", Description = "Hotel owners/managers", CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new Role { Id = 3, Name = "Admin", Description = "System administrators", CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
-            );
+            modelBuilder
+                .Entity<Role>()
+                .HasData(
+                    new Role
+                    {
+                        Id = 1,
+                        Name = "Guest",
+                        Description = "Regular guest users",
+                        CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    },
+                    new Role
+                    {
+                        Id = 2,
+                        Name = "Hotel",
+                        Description = "Hotel owners/managers",
+                        CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    },
+                    new Role
+                    {
+                        Id = 3,
+                        Name = "Admin",
+                        Description = "System administrators",
+                        CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    }
+                );
 
             // Seed default users
             // Note: Using the same password hash for all users
-            modelBuilder.Entity<User>().HasData(
-                new User 
-                { 
-                    Id = 1, 
-                    Email = "admin@visita.ph", 
-                    FirstName = "System", 
-                    LastName = "Administrator",
-                    PasswordHash = "$2a$11$sXq9mWnUN0Gy2UtgD6QZ3eYfngx161BKuQlI3IOV0aQmu34NJDeBq",
-                    Provider = "Local",
-                    IsEmailVerified = true,
-                    IsActive = true,
-                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                },
-                new User 
-                { 
-                    Id = 2, 
-                    Email = "hotel@example.com", 
-                    FirstName = "Jane", 
-                    LastName = "Smith",
-                    PasswordHash = "$2a$11$sXq9mWnUN0Gy2UtgD6QZ3eYfngx161BKuQlI3IOV0aQmu34NJDeBq",
-                    Provider = "Local",
-                    IsEmailVerified = true,
-                    IsActive = true,
-                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                },
-                new User 
-                { 
-                    Id = 3, 
-                    Email = "guest@example.com", 
-                    FirstName = "John", 
-                    LastName = "Doe",
-                    PasswordHash = "$2a$11$sXq9mWnUN0Gy2UtgD6QZ3eYfngx161BKuQlI3IOV0aQmu34NJDeBq",
-                    Provider = "Local",
-                    IsEmailVerified = true,
-                    IsActive = true,
-                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                }
-            );
+            modelBuilder
+                .Entity<User>()
+                .HasData(
+                    new User
+                    {
+                        Id = 1,
+                        Email = "admin@visita.ph",
+                        FirstName = "System",
+                        LastName = "Administrator",
+                        PasswordHash =
+                            "$2a$11$sXq9mWnUN0Gy2UtgD6QZ3eYfngx161BKuQlI3IOV0aQmu34NJDeBq",
+                        Provider = "Local",
+                        IsEmailVerified = true,
+                        IsActive = true,
+                        CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    },
+                    new User
+                    {
+                        Id = 2,
+                        Email = "hotel@example.com",
+                        FirstName = "Jane",
+                        LastName = "Smith",
+                        PasswordHash =
+                            "$2a$11$sXq9mWnUN0Gy2UtgD6QZ3eYfngx161BKuQlI3IOV0aQmu34NJDeBq",
+                        Provider = "Local",
+                        IsEmailVerified = true,
+                        IsActive = true,
+                        CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    },
+                    new User
+                    {
+                        Id = 3,
+                        Email = "guest@example.com",
+                        FirstName = "John",
+                        LastName = "Doe",
+                        PasswordHash =
+                            "$2a$11$sXq9mWnUN0Gy2UtgD6QZ3eYfngx161BKuQlI3IOV0aQmu34NJDeBq",
+                        Provider = "Local",
+                        IsEmailVerified = true,
+                        IsActive = true,
+                        CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    }
+                );
 
             // Seed user-role assignments
-            modelBuilder.Entity<UserRole>().HasData(
-                new UserRole { UserId = 1, RoleId = 3, AssignedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) }, // Admin user -> Admin role
-                new UserRole { UserId = 2, RoleId = 2, AssignedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) }, // Hotel user -> Hotel role
-                new UserRole { UserId = 3, RoleId = 1, AssignedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) }  // Guest user -> Guest role
-            );
+            modelBuilder
+                .Entity<UserRole>()
+                .HasData(
+                    new UserRole
+                    {
+                        UserId = 1,
+                        RoleId = 3,
+                        AssignedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    }, // Admin user -> Admin role
+                    new UserRole
+                    {
+                        UserId = 2,
+                        RoleId = 2,
+                        AssignedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    }, // Hotel user -> Hotel role
+                    new UserRole
+                    {
+                        UserId = 3,
+                        RoleId = 1,
+                        AssignedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    } // Guest user -> Guest role
+                );
 
             // RefreshToken configuration
             modelBuilder.Entity<RefreshToken>(entity =>
@@ -143,8 +191,9 @@ namespace VisitaBookingApi.Data
                 entity.HasKey(rt => rt.Id);
                 entity.Property(rt => rt.Token).IsRequired().HasMaxLength(500);
                 entity.HasIndex(rt => rt.Token);
-                
-                entity.HasOne(rt => rt.User)
+
+                entity
+                    .HasOne(rt => rt.User)
                     .WithMany()
                     .HasForeignKey(rt => rt.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
@@ -158,8 +207,9 @@ namespace VisitaBookingApi.Data
                 entity.Property(us => us.IpAddress).HasMaxLength(45);
                 entity.Property(us => us.UserAgent).HasMaxLength(500);
                 entity.HasIndex(us => us.SessionToken);
-                
-                entity.HasOne(us => us.User)
+
+                entity
+                    .HasOne(us => us.User)
                     .WithMany()
                     .HasForeignKey(us => us.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
@@ -176,7 +226,8 @@ namespace VisitaBookingApi.Data
                 entity.HasIndex(a => a.IsActive);
                 entity.HasIndex(a => a.OwnerId);
 
-                entity.HasOne(a => a.Owner)
+                entity
+                    .HasOne(a => a.Owner)
                     .WithMany()
                     .HasForeignKey(a => a.OwnerId)
                     .OnDelete(DeleteBehavior.Restrict);
@@ -195,7 +246,8 @@ namespace VisitaBookingApi.Data
                 entity.HasIndex(r => r.AccommodationId);
                 entity.HasIndex(r => r.MaxGuests);
 
-                entity.HasOne(r => r.Accommodation)
+                entity
+                    .HasOne(r => r.Accommodation)
                     .WithMany(a => a.Rooms)
                     .HasForeignKey(r => r.AccommodationId)
                     .OnDelete(DeleteBehavior.SetNull);
@@ -214,7 +266,8 @@ namespace VisitaBookingApi.Data
                 entity.HasIndex(rp => new { rp.RoomId, rp.DisplayOrder });
                 entity.HasIndex(rp => rp.IsActive);
 
-                entity.HasOne(rp => rp.Room)
+                entity
+                    .HasOne(rp => rp.Room)
                     .WithMany(r => r.Photos)
                     .HasForeignKey(rp => rp.RoomId)
                     .OnDelete(DeleteBehavior.Cascade);
@@ -231,7 +284,8 @@ namespace VisitaBookingApi.Data
                 entity.HasIndex(a => a.IsActive);
                 entity.HasIndex(a => a.ParentAmenityId);
 
-                entity.HasOne(a => a.ParentAmenity)
+                entity
+                    .HasOne(a => a.ParentAmenity)
                     .WithMany(a => a.ChildAmenities)
                     .HasForeignKey(a => a.ParentAmenityId)
                     .OnDelete(DeleteBehavior.Restrict);
@@ -243,12 +297,14 @@ namespace VisitaBookingApi.Data
                 entity.HasKey(ra => new { ra.RoomId, ra.AmenityId });
                 entity.Property(ra => ra.Notes).HasMaxLength(500);
 
-                entity.HasOne(ra => ra.Room)
+                entity
+                    .HasOne(ra => ra.Room)
                     .WithMany(r => r.RoomAmenities)
                     .HasForeignKey(ra => ra.RoomId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                entity.HasOne(ra => ra.Amenity)
+                entity
+                    .HasOne(ra => ra.Amenity)
                     .WithMany(a => a.RoomAmenities)
                     .HasForeignKey(ra => ra.AmenityId)
                     .OnDelete(DeleteBehavior.Cascade);
@@ -261,10 +317,16 @@ namespace VisitaBookingApi.Data
                 entity.Property(rpr => rpr.Name).HasMaxLength(100);
                 entity.Property(rpr => rpr.Description).HasMaxLength(500);
                 entity.Property(rpr => rpr.FixedPrice).HasPrecision(10, 2);
-                entity.HasIndex(rpr => new { rpr.RoomId, rpr.RuleType, rpr.IsActive });
+                entity.HasIndex(rpr => new
+                {
+                    rpr.RoomId,
+                    rpr.RuleType,
+                    rpr.IsActive,
+                });
                 entity.HasIndex(rpr => new { rpr.StartDate, rpr.EndDate });
 
-                entity.HasOne(rpr => rpr.Room)
+                entity
+                    .HasOne(rpr => rpr.Room)
                     .WithMany(r => r.PricingRules)
                     .HasForeignKey(rpr => rpr.RoomId)
                     .OnDelete(DeleteBehavior.Cascade);
@@ -281,7 +343,8 @@ namespace VisitaBookingApi.Data
                 entity.Property(rao => rao.CreatedBy).HasMaxLength(100);
                 entity.HasIndex(rao => new { rao.RoomId, rao.Date }).IsUnique();
 
-                entity.HasOne(rao => rao.Room)
+                entity
+                    .HasOne(rao => rao.Room)
                     .WithMany(r => r.AvailabilityOverrides)
                     .HasForeignKey(rao => rao.RoomId)
                     .OnDelete(DeleteBehavior.Cascade);
@@ -311,10 +374,19 @@ namespace VisitaBookingApi.Data
                 entity.Property(rpc => rpc.MinPrice90Days).HasPrecision(10, 2);
                 entity.Property(rpc => rpc.MaxPrice90Days).HasPrecision(10, 2);
                 entity.Property(rpc => rpc.AvgPrice90Days).HasPrecision(10, 2);
-                entity.Property(rpc => rpc.WeekendMultiplier).HasPrecision(5, 2).HasDefaultValue(1.0m);
-                entity.Property(rpc => rpc.HolidayMultiplier).HasPrecision(5, 2).HasDefaultValue(1.0m);
-                entity.Property(rpc => rpc.PeakSeasonMultiplier).HasPrecision(5, 2).HasDefaultValue(1.0m);
-                
+                entity
+                    .Property(rpc => rpc.WeekendMultiplier)
+                    .HasPrecision(5, 2)
+                    .HasDefaultValue(1.0m);
+                entity
+                    .Property(rpc => rpc.HolidayMultiplier)
+                    .HasPrecision(5, 2)
+                    .HasDefaultValue(1.0m);
+                entity
+                    .Property(rpc => rpc.PeakSeasonMultiplier)
+                    .HasPrecision(5, 2)
+                    .HasDefaultValue(1.0m);
+
                 // Indexes for fast price range filtering
                 entity.HasIndex(rpc => rpc.RoomId).IsUnique();
                 entity.HasIndex(rpc => new { rpc.MinPrice30Days, rpc.MaxPrice30Days });
@@ -322,9 +394,10 @@ namespace VisitaBookingApi.Data
                 entity.HasIndex(rpc => rpc.PriceBand);
                 entity.HasIndex(rpc => rpc.DataValidUntil);
                 entity.HasIndex(rpc => rpc.LastUpdated);
-                
+
                 // Foreign key relationship
-                entity.HasOne(rpc => rpc.Room)
+                entity
+                    .HasOne(rpc => rpc.Room)
                     .WithMany()
                     .HasForeignKey(rpc => rpc.RoomId)
                     .OnDelete(DeleteBehavior.Cascade);
@@ -361,12 +434,14 @@ namespace VisitaBookingApi.Data
                 entity.HasIndex(b => b.RoomId);
 
                 // Foreign key relationships
-                entity.HasOne(b => b.User)
+                entity
+                    .HasOne(b => b.User)
                     .WithMany()
                     .HasForeignKey(b => b.UserId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                entity.HasOne(b => b.Room)
+                entity
+                    .HasOne(b => b.Room)
                     .WithMany()
                     .HasForeignKey(b => b.RoomId)
                     .OnDelete(DeleteBehavior.Restrict);
@@ -391,21 +466,29 @@ namespace VisitaBookingApi.Data
                 entity.HasIndex(br => br.Status);
                 entity.HasIndex(br => br.ExpiresAt);
                 entity.HasIndex(br => br.ReservedAt);
-                entity.HasIndex(br => new { br.RoomId, br.CheckInDate, br.CheckOutDate });
+                entity.HasIndex(br => new
+                {
+                    br.RoomId,
+                    br.CheckInDate,
+                    br.CheckOutDate,
+                });
                 entity.HasIndex(br => br.UserId);
 
                 // Foreign key relationships
-                entity.HasOne(br => br.Booking)
+                entity
+                    .HasOne(br => br.Booking)
                     .WithOne(b => b.Reservation)
                     .HasForeignKey<BookingReservation>(br => br.BookingId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                entity.HasOne(br => br.User)
+                entity
+                    .HasOne(br => br.User)
                     .WithMany()
                     .HasForeignKey(br => br.UserId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                entity.HasOne(br => br.Room)
+                entity
+                    .HasOne(br => br.Room)
                     .WithMany()
                     .HasForeignKey(br => br.RoomId)
                     .OnDelete(DeleteBehavior.Restrict);
@@ -417,7 +500,11 @@ namespace VisitaBookingApi.Data
                 entity.HasKey(bp => bp.Id);
                 entity.Property(bp => bp.PaymentReference).IsRequired().HasMaxLength(255);
                 entity.Property(bp => bp.Amount).HasPrecision(12, 2);
-                entity.Property(bp => bp.Currency).IsRequired().HasMaxLength(3).HasDefaultValue("PHP");
+                entity
+                    .Property(bp => bp.Currency)
+                    .IsRequired()
+                    .HasMaxLength(3)
+                    .HasDefaultValue("PHP");
                 entity.Property(bp => bp.NetAmount).HasPrecision(12, 2);
                 entity.Property(bp => bp.ProviderFee).HasPrecision(10, 2);
                 entity.Property(bp => bp.PlatformFee).HasPrecision(10, 2);
@@ -447,12 +534,14 @@ namespace VisitaBookingApi.Data
                 entity.HasIndex(bp => bp.BookingId);
 
                 // Foreign key relationships
-                entity.HasOne(bp => bp.Booking)
+                entity
+                    .HasOne(bp => bp.Booking)
                     .WithMany(b => b.Payments)
                     .HasForeignKey(bp => bp.BookingId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                entity.HasOne(bp => bp.RefundedFromPayment)
+                entity
+                    .HasOne(bp => bp.RefundedFromPayment)
                     .WithMany(p => p.RefundPayments)
                     .HasForeignKey(bp => bp.RefundedFromPaymentId)
                     .OnDelete(DeleteBehavior.Restrict);
@@ -476,29 +565,153 @@ namespace VisitaBookingApi.Data
                 entity.HasIndex(bal => bal.RoomId);
                 entity.HasIndex(bal => bal.IsActive);
                 entity.HasIndex(bal => bal.ExpiresAt);
-                entity.HasIndex(bal => new { bal.RoomId, bal.CheckInDate, bal.CheckOutDate });
+                entity.HasIndex(bal => new
+                {
+                    bal.RoomId,
+                    bal.CheckInDate,
+                    bal.CheckOutDate,
+                });
                 entity.HasIndex(bal => bal.CreatedAt);
 
                 // Foreign key relationships
-                entity.HasOne(bal => bal.Room)
+                entity
+                    .HasOne(bal => bal.Room)
                     .WithMany()
                     .HasForeignKey(bal => bal.RoomId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                entity.HasOne(bal => bal.User)
+                entity
+                    .HasOne(bal => bal.User)
                     .WithMany()
                     .HasForeignKey(bal => bal.UserId)
                     .OnDelete(DeleteBehavior.SetNull);
 
-                entity.HasOne(bal => bal.Booking)
+                entity
+                    .HasOne(bal => bal.Booking)
                     .WithMany()
                     .HasForeignKey(bal => bal.BookingId)
                     .OnDelete(DeleteBehavior.SetNull);
 
-                entity.HasOne(bal => bal.Reservation)
+                entity
+                    .HasOne(bal => bal.Reservation)
                     .WithMany()
                     .HasForeignKey(bal => bal.ReservationId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+            // AccommodationComment entity configuration
+            // Internal admin notes only - not visible to accommodation owners
+            modelBuilder.Entity<AccommodationComment>(entity =>
+            {
+                entity.HasKey(ac => ac.Id);
+                entity.Property(ac => ac.Comment).IsRequired().HasMaxLength(2000);
+                entity.HasIndex(ac => ac.AccommodationId);
+                entity.HasIndex(ac => ac.AdminId);
+                entity.HasIndex(ac => ac.CreatedAt);
+
+                // Foreign key relationships
+                entity
+                    .HasOne(ac => ac.Accommodation)
+                    .WithMany(a => a.Comments)
+                    .HasForeignKey(ac => ac.AccommodationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity
+                    .HasOne(ac => ac.Admin)
+                    .WithMany()
+                    .HasForeignKey(ac => ac.AdminId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+            // Establishment entity configuration
+            modelBuilder.Entity<Establishment>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(255);
+                entity.Property(e => e.Description).HasMaxLength(2000);
+                entity.Property(e => e.Logo).HasMaxLength(500);
+                entity.Property(e => e.CoverImage).HasMaxLength(500);
+                entity.Property(e => e.Address).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.City).HasMaxLength(100).HasDefaultValue("Baguio");
+                entity.Property(e => e.Latitude).HasPrecision(10, 8);
+                entity.Property(e => e.Longitude).HasPrecision(11, 8);
+                entity.Property(e => e.ContactNumber).HasMaxLength(50);
+                entity.Property(e => e.Email).HasMaxLength(255);
+                entity.Property(e => e.Website).HasMaxLength(255);
+                entity.Property(e => e.FacebookPage).HasMaxLength(255);
+                entity.Property(e => e.BusinessPermitS3Key).HasMaxLength(500);
+                entity.Property(e => e.RejectionReason).HasMaxLength(2000);
+
+                // Convert enums to strings in database
+                entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+                entity.Property(e => e.Category).HasConversion<string>().HasMaxLength(50);
+
+                // Indexes
+                entity.HasIndex(e => e.Name);
+                entity.HasIndex(e => e.Status);
+                entity.HasIndex(e => e.Category);
+                entity.HasIndex(e => e.City);
+                entity.HasIndex(e => e.IsActive);
+                entity.HasIndex(e => e.OwnerId);
+
+                // Foreign key relationships
+                entity
+                    .HasOne(e => e.Owner)
+                    .WithMany()
+                    .HasForeignKey(e => e.OwnerId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity
+                    .HasOne(e => e.ApprovedBy)
+                    .WithMany()
+                    .HasForeignKey(e => e.ApprovedById)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // EstablishmentComment entity configuration
+            modelBuilder.Entity<EstablishmentComment>(entity =>
+            {
+                entity.HasKey(ec => ec.Id);
+                entity.Property(ec => ec.Comment).IsRequired().HasMaxLength(2000);
+
+                // Indexes
+                entity.HasIndex(ec => ec.EstablishmentId);
+                entity.HasIndex(ec => ec.AdminId);
+                entity.HasIndex(ec => ec.CreatedAt);
+
+                // Foreign key relationships
+                entity
+                    .HasOne(ec => ec.Establishment)
+                    .WithMany(e => e.Comments)
+                    .HasForeignKey(ec => ec.EstablishmentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity
+                    .HasOne(ec => ec.Admin)
+                    .WithMany()
+                    .HasForeignKey(ec => ec.AdminId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // EstablishmentHours entity configuration
+            modelBuilder.Entity<EstablishmentHours>(entity =>
+            {
+                entity.HasKey(eh => eh.Id);
+
+                // Convert enum to string
+                entity.Property(eh => eh.DayOfWeek).HasConversion<string>().HasMaxLength(10);
+
+                entity.Property(eh => eh.OpenTime).HasColumnType("time");
+                entity.Property(eh => eh.CloseTime).HasColumnType("time");
+
+                // Indexes
+                entity.HasIndex(eh => eh.EstablishmentId);
+                entity.HasIndex(eh => eh.DayOfWeek);
+
+                // Foreign key relationships
+                entity
+                    .HasOne(eh => eh.Establishment)
+                    .WithMany(e => e.Hours)
+                    .HasForeignKey(eh => eh.EstablishmentId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             // Seed default amenities
@@ -510,34 +723,190 @@ namespace VisitaBookingApi.Data
             var amenities = new List<Amenity>
             {
                 // Comfort
-                new() { Id = 1, Name = "Air Conditioning", Category = AmenityCategory.Comfort, Icon = "ac-unit", DisplayOrder = 1, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 2, Name = "Heating", Category = AmenityCategory.Comfort, Icon = "whatshot", DisplayOrder = 2, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 3, Name = "Balcony", Category = AmenityCategory.Comfort, Icon = "deck", DisplayOrder = 3, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 4, Name = "City View", Category = AmenityCategory.Comfort, Icon = "location-city", DisplayOrder = 4, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 5, Name = "Ocean View", Category = AmenityCategory.Comfort, Icon = "waves", DisplayOrder = 5, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-
+                new()
+                {
+                    Id = 1,
+                    Name = "Air Conditioning",
+                    Category = AmenityCategory.Comfort,
+                    Icon = "ac-unit",
+                    DisplayOrder = 1,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 2,
+                    Name = "Heating",
+                    Category = AmenityCategory.Comfort,
+                    Icon = "whatshot",
+                    DisplayOrder = 2,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 3,
+                    Name = "Balcony",
+                    Category = AmenityCategory.Comfort,
+                    Icon = "deck",
+                    DisplayOrder = 3,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 4,
+                    Name = "City View",
+                    Category = AmenityCategory.Comfort,
+                    Icon = "location-city",
+                    DisplayOrder = 4,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 5,
+                    Name = "Ocean View",
+                    Category = AmenityCategory.Comfort,
+                    Icon = "waves",
+                    DisplayOrder = 5,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
                 // Technology
-                new() { Id = 6, Name = "Free WiFi", Category = AmenityCategory.Technology, Icon = "wifi", DisplayOrder = 1, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 7, Name = "Smart TV", Category = AmenityCategory.Technology, Icon = "tv", DisplayOrder = 2, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 8, Name = "USB Charging Ports", Category = AmenityCategory.Technology, Icon = "usb", DisplayOrder = 3, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 9, Name = "Bluetooth Speaker", Category = AmenityCategory.Technology, Icon = "speaker", DisplayOrder = 4, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-
+                new()
+                {
+                    Id = 6,
+                    Name = "Free WiFi",
+                    Category = AmenityCategory.Technology,
+                    Icon = "wifi",
+                    DisplayOrder = 1,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 7,
+                    Name = "Smart TV",
+                    Category = AmenityCategory.Technology,
+                    Icon = "tv",
+                    DisplayOrder = 2,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 8,
+                    Name = "USB Charging Ports",
+                    Category = AmenityCategory.Technology,
+                    Icon = "usb",
+                    DisplayOrder = 3,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 9,
+                    Name = "Bluetooth Speaker",
+                    Category = AmenityCategory.Technology,
+                    Icon = "speaker",
+                    DisplayOrder = 4,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
                 // Bathroom
-                new() { Id = 10, Name = "Private Bathroom", Category = AmenityCategory.Bathroom, Icon = "bathroom", DisplayOrder = 1, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 11, Name = "Shower", Category = AmenityCategory.Bathroom, Icon = "shower", DisplayOrder = 2, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 12, Name = "Bathtub", Category = AmenityCategory.Bathroom, Icon = "bathtub", DisplayOrder = 3, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 13, Name = "Hair Dryer", Category = AmenityCategory.Bathroom, Icon = "dry", DisplayOrder = 4, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 14, Name = "Toiletries", Category = AmenityCategory.Bathroom, Icon = "soap", DisplayOrder = 5, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-
+                new()
+                {
+                    Id = 10,
+                    Name = "Private Bathroom",
+                    Category = AmenityCategory.Bathroom,
+                    Icon = "bathroom",
+                    DisplayOrder = 1,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 11,
+                    Name = "Shower",
+                    Category = AmenityCategory.Bathroom,
+                    Icon = "shower",
+                    DisplayOrder = 2,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 12,
+                    Name = "Bathtub",
+                    Category = AmenityCategory.Bathroom,
+                    Icon = "bathtub",
+                    DisplayOrder = 3,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 13,
+                    Name = "Hair Dryer",
+                    Category = AmenityCategory.Bathroom,
+                    Icon = "dry",
+                    DisplayOrder = 4,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 14,
+                    Name = "Toiletries",
+                    Category = AmenityCategory.Bathroom,
+                    Icon = "soap",
+                    DisplayOrder = 5,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
                 // Kitchen
-                new() { Id = 15, Name = "Mini Fridge", Category = AmenityCategory.Kitchen, Icon = "kitchen", DisplayOrder = 1, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 16, Name = "Coffee Maker", Category = AmenityCategory.Kitchen, Icon = "coffee-maker", DisplayOrder = 2, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 17, Name = "Microwave", Category = AmenityCategory.Kitchen, Icon = "microwave", DisplayOrder = 3, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-
+                new()
+                {
+                    Id = 15,
+                    Name = "Mini Fridge",
+                    Category = AmenityCategory.Kitchen,
+                    Icon = "kitchen",
+                    DisplayOrder = 1,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 16,
+                    Name = "Coffee Maker",
+                    Category = AmenityCategory.Kitchen,
+                    Icon = "coffee-maker",
+                    DisplayOrder = 2,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 17,
+                    Name = "Microwave",
+                    Category = AmenityCategory.Kitchen,
+                    Icon = "microwave",
+                    DisplayOrder = 3,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
                 // Safety
-                new() { Id = 18, Name = "Safe", Category = AmenityCategory.Safety, Icon = "gpp-good", DisplayOrder = 1, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 19, Name = "Smoke Detector", Category = AmenityCategory.Safety, Icon = "smoke-free", DisplayOrder = 2, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
-                new() { Id = 20, Name = "First Aid Kit", Category = AmenityCategory.Safety, Icon = "medical-services", DisplayOrder = 3, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+                new()
+                {
+                    Id = 18,
+                    Name = "Safe",
+                    Category = AmenityCategory.Safety,
+                    Icon = "gpp-good",
+                    DisplayOrder = 1,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 19,
+                    Name = "Smoke Detector",
+                    Category = AmenityCategory.Safety,
+                    Icon = "smoke-free",
+                    DisplayOrder = 2,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
+                new()
+                {
+                    Id = 20,
+                    Name = "First Aid Kit",
+                    Category = AmenityCategory.Safety,
+                    Icon = "medical-services",
+                    DisplayOrder = 3,
+                    CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                },
             };
 
             modelBuilder.Entity<Amenity>().HasData(amenities);

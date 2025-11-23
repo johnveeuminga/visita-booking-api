@@ -318,8 +318,53 @@ namespace VisitaBookingApi.Controllers
                     Data = null
                 });
             }
-        }
+        }                   
+        /// <summary>   
+        /// Change password for authenticated user
+        /// </summary>
+        /// <param name="request">Current and new password</param> 
+        /// <returns>Success status</returns>
+        [HttpPost("change-password")]
+        [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+public async Task<ActionResult<ApiResponse<bool>>> ChangePassword([FromBody] ChangePasswordRequest request)
+{
+    if (!ModelState.IsValid)
+    {
+        return BadRequest(new ApiResponse<bool>
+        {
+            Success = false,
+            Message = "Invalid request data.",
+            Data = false
+        });
+    }
 
+    var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+    
+    if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+    {
+        return Unauthorized(new ApiResponse<bool>
+        {
+            Success = false,
+            Message = "Invalid user context.",
+            Data = false
+        });
+    }
+
+    var result = await _authService.ChangePasswordAsync(userId, request);
+    
+    if (!result.Success)
+    {
+        return BadRequest(result);
+    }
+
+    return Ok(result);
+}
+
+
+        
         // Role assignment moved to AdminUsersController
 
         /// <summary>
