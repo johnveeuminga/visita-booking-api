@@ -1,7 +1,7 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 using visita_booking_api.Models.DTOs;
 using visita_booking_api.Models.Entities;
 using visita_booking_api.Services.Interfaces;
@@ -16,11 +16,17 @@ namespace visita_booking_api.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IS3FileService _s3FileService;
+        private readonly IEmailService _emailService;
 
-        public AccommodationsController(ApplicationDbContext context, IS3FileService s3FileService)
+        public AccommodationsController(
+            ApplicationDbContext context,
+            IS3FileService s3FileService,
+            IEmailService emailService
+        )
         {
             _context = context;
             _s3FileService = s3FileService;
+            _emailService = emailService;
         }
 
         /// <summary>
@@ -30,8 +36,8 @@ namespace visita_booking_api.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<AccommodationSummaryDto>>> GetAccommodations()
         {
-            var accommodations = await _context.Accommodations
-                .Include(a => a.Owner)
+            var accommodations = await _context
+                .Accommodations.Include(a => a.Owner)
                 .Include(a => a.Rooms)
                 .Where(a => a.IsActive)
                 .Select(a => new AccommodationSummaryDto
@@ -45,7 +51,7 @@ namespace visita_booking_api.Controllers
                     ContactNo = a.ContactNo,
                     IsActive = a.IsActive,
                     Status = a.Status.ToString(),
-                    ActiveRoomCount = a.Rooms.Count(r => r.IsActive)
+                    ActiveRoomCount = a.Rooms.Count(r => r.IsActive),
                 })
                 .OrderBy(a => a.Name)
                 .ToListAsync();
@@ -60,8 +66,8 @@ namespace visita_booking_api.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<AccommodationResponseDto>> GetAccommodation(int id)
         {
-            var accommodation = await _context.Accommodations
-                .Include(a => a.Owner)
+            var accommodation = await _context
+                .Accommodations.Include(a => a.Owner)
                 .Include(a => a.Rooms)
                 .FirstOrDefaultAsync(a => a.Id == id && a.IsActive);
 
@@ -89,19 +95,25 @@ namespace visita_booking_api.Controllers
                 OwnerId = accommodation.OwnerId,
                 OwnerName = accommodation.Owner?.FullName ?? "Unknown",
                 OwnerEmail = accommodation.Owner?.Email ?? "Unknown",
-                ActiveRoomCount = accommodation.Rooms.Count(r => r.IsActive)
+                ActiveRoomCount = accommodation.Rooms.Count(r => r.IsActive),
             };
 
             // Generate presigned URLs for private business documents (short lived)
             var presignExpiration = TimeSpan.FromMinutes(15);
             if (!string.IsNullOrEmpty(accommodation.BusinessPermitS3Key))
             {
-                response.BusinessPermitUrl = await _s3FileService.GetPresignedUrlAsync(accommodation.BusinessPermitS3Key, presignExpiration);
+                response.BusinessPermitUrl = await _s3FileService.GetPresignedUrlAsync(
+                    accommodation.BusinessPermitS3Key,
+                    presignExpiration
+                );
             }
 
             if (!string.IsNullOrEmpty(accommodation.DotAccreditationS3Key))
             {
-                response.DotAccreditationUrl = await _s3FileService.GetPresignedUrlAsync(accommodation.DotAccreditationS3Key, presignExpiration);
+                response.DotAccreditationUrl = await _s3FileService.GetPresignedUrlAsync(
+                    accommodation.DotAccreditationS3Key,
+                    presignExpiration
+                );
             }
 
             // BTC membership is a boolean flag and not a document
@@ -121,8 +133,8 @@ namespace visita_booking_api.Controllers
                 return Unauthorized("User ID not found in token");
             }
 
-            var accommodations = await _context.Accommodations
-                .Include(a => a.Owner)
+            var accommodations = await _context
+                .Accommodations.Include(a => a.Owner)
                 .Include(a => a.Rooms)
                 .Where(a => a.OwnerId == currentUserId.Value)
                 .ToListAsync();
@@ -148,17 +160,23 @@ namespace visita_booking_api.Controllers
                     OwnerId = a.OwnerId,
                     OwnerName = a.Owner!.FullName,
                     OwnerEmail = a.Owner.Email,
-                    ActiveRoomCount = a.Rooms.Count(r => r.IsActive)
+                    ActiveRoomCount = a.Rooms.Count(r => r.IsActive),
                 };
 
                 if (!string.IsNullOrEmpty(a.BusinessPermitS3Key))
                 {
-                    dto.BusinessPermitUrl = await _s3FileService.GetPresignedUrlAsync(a.BusinessPermitS3Key, presignExpiration);
+                    dto.BusinessPermitUrl = await _s3FileService.GetPresignedUrlAsync(
+                        a.BusinessPermitS3Key,
+                        presignExpiration
+                    );
                 }
 
                 if (!string.IsNullOrEmpty(a.DotAccreditationS3Key))
                 {
-                    dto.DotAccreditationUrl = await _s3FileService.GetPresignedUrlAsync(a.DotAccreditationS3Key, presignExpiration);
+                    dto.DotAccreditationUrl = await _s3FileService.GetPresignedUrlAsync(
+                        a.DotAccreditationS3Key,
+                        presignExpiration
+                    );
                 }
 
                 // BTC membership is a boolean flag and not a document
@@ -173,7 +191,9 @@ namespace visita_booking_api.Controllers
         /// Create a new accommodation
         /// </summary>
         [HttpPost]
-        public async Task<ActionResult<AccommodationResponseDto>> CreateAccommodation([FromForm] CreateAccommodationRequestDto request)
+        public async Task<ActionResult<AccommodationResponseDto>> CreateAccommodation(
+            [FromForm] CreateAccommodationRequestDto request
+        )
         {
             var currentUserId = GetCurrentUserId();
             if (currentUserId == null)
@@ -193,7 +213,10 @@ namespace visita_booking_api.Controllers
             // Handle logo upload if provided
             if (request.LogoFile != null)
             {
-                var uploadResult = await _s3FileService.UploadFileAsync(request.LogoFile, "accommodation-logos");
+                var uploadResult = await _s3FileService.UploadFileAsync(
+                    request.LogoFile,
+                    "accommodation-logos"
+                );
                 if (!uploadResult.Success)
                 {
                     return BadRequest($"Logo upload failed: {uploadResult.Error}");
@@ -212,17 +235,24 @@ namespace visita_booking_api.Controllers
                 OwnerId = currentUserId.Value,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                UpdatedAt = DateTime.UtcNow,
             };
 
             _context.Accommodations.Add(accommodation);
             await _context.SaveChangesAsync();
 
             // Reload with owner information
-            await _context.Entry(accommodation)
-                .Reference(a => a.Owner)
-                .LoadAsync();
-
+            await _context.Entry(accommodation).Reference(a => a.Owner).LoadAsync();
+            // Send email notification to admins
+            try
+            {
+                await _emailService.SendNewAccommodationAlertToAdminsAsync(accommodation, user);
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't fail the request
+                Console.WriteLine($"Failed to send admin notification: {ex.Message}");
+            }
             var response = new AccommodationResponseDto
             {
                 Id = accommodation.Id,
@@ -238,24 +268,35 @@ namespace visita_booking_api.Controllers
                 OwnerId = accommodation.OwnerId,
                 OwnerName = accommodation.Owner!.FullName,
                 OwnerEmail = accommodation.Owner.Email,
-                ActiveRoomCount = 0
+                ActiveRoomCount = 0,
             };
 
-            return CreatedAtAction(nameof(GetAccommodation), new { id = accommodation.Id }, response);
+            return CreatedAtAction(
+                nameof(GetAccommodation),
+                new { id = accommodation.Id },
+                response
+            );
         }
 
         /// <summary>
         /// Upload a private business document (owner or admin)
         /// </summary>
         [HttpPost("{id}/documents/{docType}")]
-        public async Task<IActionResult> UploadBusinessDocument(int id, string docType, IFormFile file)
+        public async Task<IActionResult> UploadBusinessDocument(
+            int id,
+            string docType,
+            IFormFile file
+        )
         {
             var accommodation = await _context.Accommodations.FindAsync(id);
-            if (accommodation == null) return NotFound("Accommodation not found");
+            if (accommodation == null)
+                return NotFound("Accommodation not found");
 
-            if (!CanModifyAccommodation(accommodation)) return Forbid();
+            if (!CanModifyAccommodation(accommodation))
+                return Forbid();
 
-            if (file == null || file.Length == 0) return BadRequest("No file provided");
+            if (file == null || file.Length == 0)
+                return BadRequest("No file provided");
 
             string folder = $"accommodations/{id}/documents";
             var uploadResult = await _s3FileService.UploadPrivateFileAsync(file, folder);
@@ -291,9 +332,11 @@ namespace visita_booking_api.Controllers
         public async Task<IActionResult> DeleteBusinessDocument(int id, string docType)
         {
             var accommodation = await _context.Accommodations.FindAsync(id);
-            if (accommodation == null) return NotFound("Accommodation not found");
+            if (accommodation == null)
+                return NotFound("Accommodation not found");
 
-            if (!CanModifyAccommodation(accommodation)) return Forbid();
+            if (!CanModifyAccommodation(accommodation))
+                return Forbid();
 
             string? currentKey = null;
             switch (docType.ToLower())
@@ -325,10 +368,13 @@ namespace visita_booking_api.Controllers
         /// Update accommodation (owner or admin only)
         /// </summary>
         [HttpPut("{id}")]
-        public async Task<ActionResult<AccommodationResponseDto>> UpdateAccommodation(int id, [FromForm] UpdateAccommodationRequestDto request)
+        public async Task<ActionResult<AccommodationResponseDto>> UpdateAccommodation(
+            int id,
+            [FromForm] UpdateAccommodationRequestDto request
+        )
         {
-            var accommodation = await _context.Accommodations
-                .Include(a => a.Owner)
+            var accommodation = await _context
+                .Accommodations.Include(a => a.Owner)
                 .Include(a => a.Rooms)
                 .FirstOrDefaultAsync(a => a.Id == id);
 
@@ -361,13 +407,16 @@ namespace visita_booking_api.Controllers
                     }
 
                     // Upload new logo
-                    var uploadResult = await _s3FileService.UploadFileAsync(request.LogoFile, "accommodation-logos");
-                    
+                    var uploadResult = await _s3FileService.UploadFileAsync(
+                        request.LogoFile,
+                        "accommodation-logos"
+                    );
+
                     if (!uploadResult.Success)
                     {
                         return BadRequest($"Failed to upload logo: {uploadResult.Error}");
                     }
-                    
+
                     logoUrl = uploadResult.FileUrl;
                 }
                 catch (Exception ex)
@@ -413,7 +462,7 @@ namespace visita_booking_api.Controllers
                 OwnerId = accommodation.OwnerId,
                 OwnerName = accommodation.Owner!.FullName,
                 OwnerEmail = accommodation.Owner.Email,
-                ActiveRoomCount = accommodation.Rooms.Count(r => r.IsActive)
+                ActiveRoomCount = accommodation.Rooms.Count(r => r.IsActive),
             };
 
             return Ok(response);
@@ -425,8 +474,7 @@ namespace visita_booking_api.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult> DeleteAccommodation(int id)
         {
-            var accommodation = await _context.Accommodations
-                .FirstOrDefaultAsync(a => a.Id == id);
+            var accommodation = await _context.Accommodations.FirstOrDefaultAsync(a => a.Id == id);
 
             if (accommodation == null)
             {
@@ -440,12 +488,15 @@ namespace visita_booking_api.Controllers
             }
 
             // Check if accommodation has active rooms
-            var hasActiveRooms = await _context.Rooms
-                .AnyAsync(r => r.AccommodationId == id && r.IsActive);
+            var hasActiveRooms = await _context.Rooms.AnyAsync(r =>
+                r.AccommodationId == id && r.IsActive
+            );
 
             if (hasActiveRooms)
             {
-                return BadRequest("Cannot delete accommodation with active rooms. Please deactivate all rooms first.");
+                return BadRequest(
+                    "Cannot delete accommodation with active rooms. Please deactivate all rooms first."
+                );
             }
 
             // Delete logo from S3 if it exists
@@ -472,8 +523,8 @@ namespace visita_booking_api.Controllers
         public async Task<IActionResult> GetAccommodationRooms(int id)
         {
             // Check if accommodation exists and user has access
-            var accommodation = await _context.Accommodations
-                .Where(a => a.Id == id)
+            var accommodation = await _context
+                .Accommodations.Where(a => a.Id == id)
                 .FirstOrDefaultAsync();
 
             if (accommodation == null)
@@ -488,8 +539,8 @@ namespace visita_booking_api.Controllers
             // }
 
             // Get rooms belonging to this accommodation
-            var rooms = await _context.Rooms
-                .Where(r => r.AccommodationId == id && r.IsActive)
+            var rooms = await _context
+                .Rooms.Where(r => r.AccommodationId == id && r.IsActive)
                 .Select(r => new RoomListItemDTO
                 {
                     Id = r.Id,
@@ -499,16 +550,17 @@ namespace visita_booking_api.Controllers
                     MaxGuests = r.MaxGuests,
                     IsActive = r.IsActive,
                     UpdatedAt = r.UpdatedAt,
-                    MainPhotoUrl = r.Photos.OrderBy(p => p.Id).FirstOrDefault() != null 
-                        ? r.Photos.OrderBy(p => p.Id).FirstOrDefault()!.S3Url 
-                        : null,
+                    MainPhotoUrl =
+                        r.Photos.OrderBy(p => p.Id).FirstOrDefault() != null
+                            ? r.Photos.OrderBy(p => p.Id).FirstOrDefault()!.S3Url
+                            : null,
                     PhotoCount = r.Photos.Count,
                     AmenityCount = r.RoomAmenities.Count,
-                    MainAmenities = r.RoomAmenities
-                        .OrderBy(ra => ra.Amenity.Name)
+                    MainAmenities = r
+                        .RoomAmenities.OrderBy(ra => ra.Amenity.Name)
                         .Take(3)
                         .Select(ra => ra.Amenity.Name)
-                        .ToList()
+                        .ToList(),
                 })
                 .OrderBy(r => r.Name)
                 .ToListAsync();
@@ -532,12 +584,10 @@ namespace visita_booking_api.Controllers
         private bool CanModifyAccommodation(Accommodation accommodation)
         {
             var currentUserId = GetCurrentUserId();
-            return currentUserId.HasValue && 
-                   (accommodation.OwnerId == currentUserId.Value || IsAdmin());
+            return currentUserId.HasValue
+                && (accommodation.OwnerId == currentUserId.Value || IsAdmin());
         }
 
         #endregion
-
-        
     }
 }

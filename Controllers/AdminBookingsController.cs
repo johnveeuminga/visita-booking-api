@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using VisitaBookingApi.Data;
 using visita_booking_api.Models.DTOs;
 using visita_booking_api.Models.Entities;
 using visita_booking_api.Services.Interfaces;
+using VisitaBookingApi.Data;
 
 namespace visita_booking_api.Controllers
 {
@@ -17,7 +17,11 @@ namespace visita_booking_api.Controllers
         private readonly IBookingService _bookingService;
         private readonly ILogger<AdminBookingsController> _logger;
 
-        public AdminBookingsController(ApplicationDbContext context, IBookingService bookingService, ILogger<AdminBookingsController> logger)
+        public AdminBookingsController(
+            ApplicationDbContext context,
+            IBookingService bookingService,
+            ILogger<AdminBookingsController> logger
+        )
         {
             _context = context;
             _bookingService = bookingService;
@@ -39,14 +43,16 @@ namespace visita_booking_api.Controllers
             [FromQuery] string? guest = null,
             [FromQuery] string? q = null,
             [FromQuery] int pageNumber = 1,
-            [FromQuery] int pageSize = 20)
+            [FromQuery] int pageSize = 20
+        )
         {
             try
             {
                 // Build a single EF query that includes necessary related data and projects to DTOs to avoid extra round trips.
-                var query = _context.Bookings
-                    .AsNoTracking()
-                    .Include(b => b.Room).ThenInclude(r => r.Accommodation)
+                var query = _context
+                    .Bookings.AsNoTracking()
+                    .Include(b => b.Room)
+                    .ThenInclude(r => r.Accommodation)
                     .AsQueryable();
 
                 if (status.HasValue)
@@ -56,8 +62,11 @@ namespace visita_booking_api.Controllers
                     query = query.Where(b => b.PaymentStatus == paymentStatus.Value);
 
                 if (accommodationId.HasValue)
-                    query = query.Where(b => b.Room != null && b.Room.AccommodationId.HasValue && b.Room.AccommodationId.Value == accommodationId.Value);
-
+                    query = query.Where(b =>
+                        b.Room != null
+                        && b.Room.AccommodationId.HasValue
+                        && b.Room.AccommodationId.Value == accommodationId.Value
+                    );
 
                 if (!string.IsNullOrEmpty(bookingReference))
                     query = query.Where(b => b.BookingReference.Contains(bookingReference));
@@ -66,17 +75,22 @@ namespace visita_booking_api.Controllers
                 if (!string.IsNullOrEmpty(guest))
                 {
                     var loweredGuest = guest.ToLower();
-                    query = query.Where(b => b.GuestName.ToLower().Contains(loweredGuest) || b.GuestEmail.ToLower().Contains(loweredGuest));
+                    query = query.Where(b =>
+                        b.GuestName.ToLower().Contains(loweredGuest)
+                        || b.GuestEmail.ToLower().Contains(loweredGuest)
+                    );
                 }
 
                 // combined 'q' search searches booking reference, room name, guest name or guest email (case-insensitive)
                 if (!string.IsNullOrEmpty(q))
                 {
                     var loweredQ = q.ToLower();
-                    query = query.Where(b => b.BookingReference.ToLower().Contains(loweredQ)
+                    query = query.Where(b =>
+                        b.BookingReference.ToLower().Contains(loweredQ)
                         || (b.Room != null && b.Room.Name.ToLower().Contains(loweredQ))
                         || b.GuestName.ToLower().Contains(loweredQ)
-                        || b.GuestEmail.ToLower().Contains(loweredQ));
+                        || b.GuestEmail.ToLower().Contains(loweredQ)
+                    );
                 }
 
                 if (checkInDateFrom.HasValue)
@@ -106,35 +120,46 @@ namespace visita_booking_api.Controllers
                         PaymentStatusDescription = b.PaymentStatus.ToString(),
                         GuestName = b.GuestName,
                         CreatedAt = b.CreatedAt,
-                        Accommodation = b.Room != null && b.Room.Accommodation != null ? new AccommodationSummaryDto
-                        {
-                            Id = b.Room.Accommodation.Id,
-                            Name = b.Room.Accommodation.Name,
-                            Description = b.Room.Accommodation.Description,
-                            Logo = b.Room.Accommodation.Logo,
-                            Address = b.Room.Accommodation.Address,
-                            EmailAddress = b.Room.Accommodation.EmailAddress,
-                            ContactNo = b.Room.Accommodation.ContactNo,
-                            IsActive = b.Room.Accommodation.IsActive,
-                            Status = b.Room.Accommodation.Status.ToString(),
-                            ActiveRoomCount = 0,
-                            PhotoUrls = b.Room.Accommodation.Logo != null ? new List<string> { b.Room.Accommodation.Logo } : new List<string>()
-                        } : null
+                        Accommodation =
+                            b.Room != null && b.Room.Accommodation != null
+                                ? new AccommodationSummaryDto
+                                {
+                                    Id = b.Room.Accommodation.Id,
+                                    Name = b.Room.Accommodation.Name,
+                                    Description = b.Room.Accommodation.Description,
+                                    Logo = b.Room.Accommodation.Logo,
+                                    Address = b.Room.Accommodation.Address,
+                                    EmailAddress = b.Room.Accommodation.EmailAddress,
+                                    ContactNo = b.Room.Accommodation.ContactNo,
+                                    IsActive = b.Room.Accommodation.IsActive,
+                                    Status = b.Room.Accommodation.Status.ToString(),
+                                    ActiveRoomCount = 0,
+                                    PhotoUrls =
+                                        b.Room.Accommodation.Logo != null
+                                            ? new List<string> { b.Room.Accommodation.Logo }
+                                            : new List<string>(),
+                                }
+                                : null,
                     })
                     .ToListAsync();
 
-                return Ok(new PagedResult<BookingSummaryDto>
-                {
-                    Items = items,
-                    TotalCount = total,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize
-                });
+                return Ok(
+                    new PagedResult<BookingSummaryDto>
+                    {
+                        Items = items,
+                        TotalCount = total,
+                        PageNumber = pageNumber,
+                        PageSize = pageSize,
+                    }
+                );
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error searching bookings (admin)");
-                return StatusCode(500, new { message = "An error occurred while searching bookings" });
+                return StatusCode(
+                    500,
+                    new { message = "An error occurred while searching bookings" }
+                );
             }
         }
 
@@ -147,8 +172,8 @@ namespace visita_booking_api.Controllers
             try
             {
                 // Single efficient query projecting to BookingResponseDto including payments, reservation, room and accommodation summaries.
-                var booking = await _context.Bookings
-                    .AsNoTracking()
+                var booking = await _context
+                    .Bookings.AsNoTracking()
                     .Where(b => b.Id == id)
                     .Select(b => new BookingResponseDto
                     {
@@ -177,84 +202,105 @@ namespace visita_booking_api.Controllers
                         ActualCheckInAt = b.ActualCheckInAt,
                         ActualCheckOutAt = b.ActualCheckOutAt,
 
-                        Reservation = b.Reservation != null ? new BookingReservationDto
-                        {
-                            Id = b.Reservation.Id,
-                            ReservationReference = b.Reservation.ReservationReference,
-                            Status = b.Reservation.Status,
-                            ReservedAt = b.Reservation.ReservedAt,
-                            ExpiresAt = b.Reservation.ExpiresAt,
-                            PaymentUrl = b.Reservation.PaymentUrl,
-                            PaymentUrlExpiresAt = b.Reservation.PaymentUrlExpiresAt,
-                            ExtensionCount = b.Reservation.ExtensionCount,
-                            CanExtend = b.Reservation.ExtensionCount < 2,
-                            IsActive = b.Reservation.Status == ReservationStatus.Active,
-                            IsExpired = b.Reservation.Status == ReservationStatus.Expired,
-                            // compute TimeUntilExpiry after materialization to avoid EF type coercion issues
-                            TimeUntilExpiry = null
-                        } : null,
+                        Reservation =
+                            b.Reservation != null
+                                ? new BookingReservationDto
+                                {
+                                    Id = b.Reservation.Id,
+                                    ReservationReference = b.Reservation.ReservationReference,
+                                    Status = b.Reservation.Status,
+                                    ReservedAt = b.Reservation.ReservedAt,
+                                    ExpiresAt = b.Reservation.ExpiresAt,
+                                    PaymentUrl = b.Reservation.PaymentUrl,
+                                    PaymentUrlExpiresAt = b.Reservation.PaymentUrlExpiresAt,
+                                    ExtensionCount = b.Reservation.ExtensionCount,
+                                    CanExtend = b.Reservation.ExtensionCount < 2,
+                                    IsActive = b.Reservation.Status == ReservationStatus.Active,
+                                    IsExpired = b.Reservation.Status == ReservationStatus.Expired,
+                                    // compute TimeUntilExpiry after materialization to avoid EF type coercion issues
+                                    TimeUntilExpiry = null,
+                                }
+                                : null,
 
-                        Payments = b.Payments.Select(p => new BookingPaymentDto
-                        {
-                            Id = p.Id,
-                            PaymentReference = p.PaymentReference,
-                            PaymentType = p.PaymentType,
-                            PaymentMethod = p.PaymentMethod,
-                            Status = p.Status,
-                            Amount = p.Amount,
-                            Currency = p.Currency,
-                            NetAmount = p.NetAmount,
-                            CreatedAt = p.CreatedAt,
-                            ProcessedAt = p.ProcessedAt,
-                            ConfirmedAt = p.ConfirmedAt,
-                            FailureReason = p.FailureReason,
-                            CardLastFour = p.CardLastFour,
-                            BankCode = p.BankCode,
-                            PaymentDescription = p.PaymentDescription
-                        }).ToList(),
-
-                        Room = b.Room != null ? new RoomSummaryDto
-                        {
-                            Id = b.Room.Id,
-                            Name = b.Room.Name,
-                            Description = b.Room.Description,
-                            DefaultPrice = b.Room.DefaultPrice,
-                            MaxGuests = b.Room.MaxGuests,
-                            MainPhotoUrl = b.Room.MainPhotoUrl,
-                            Photos = b.Room.Photos.Where(p => p.IsActive).OrderBy(p => p.DisplayOrder).Select(p => new RoomPhotoDTO
+                        Payments = b
+                            .Payments.Select(p => new BookingPaymentDto
                             {
                                 Id = p.Id,
-                                FileName = p.FileName,
-                                FileUrl = p.CdnUrl ?? p.S3Url,
-                                LastModified = p.LastModified
-                            }).ToList()
-                        } : null,
+                                PaymentReference = p.PaymentReference,
+                                PaymentType = p.PaymentType,
+                                PaymentMethod = p.PaymentMethod,
+                                Status = p.Status,
+                                Amount = p.Amount,
+                                Currency = p.Currency,
+                                NetAmount = p.NetAmount,
+                                CreatedAt = p.CreatedAt,
+                                ProcessedAt = p.ProcessedAt,
+                                ConfirmedAt = p.ConfirmedAt,
+                                FailureReason = p.FailureReason,
+                                CardLastFour = p.CardLastFour,
+                                BankCode = p.BankCode,
+                                PaymentDescription = p.PaymentDescription,
+                            })
+                            .ToList(),
 
-                        Accommodation = b.Room != null && b.Room.Accommodation != null ? new AccommodationSummaryDto
-                        {
-                            Id = b.Room.Accommodation.Id,
-                            Name = b.Room.Accommodation.Name,
-                            Description = b.Room.Accommodation.Description,
-                            Logo = b.Room.Accommodation.Logo,
-                            Address = b.Room.Accommodation.Address,
-                            EmailAddress = b.Room.Accommodation.EmailAddress,
-                            ContactNo = b.Room.Accommodation.ContactNo,
-                            IsActive = b.Room.Accommodation.IsActive,
-                            Status = b.Room.Accommodation.Status.ToString()
-                        ,
-                            PhotoUrls = b.Room.Accommodation.Logo != null ? new List<string> { b.Room.Accommodation.Logo } : new List<string>()
-                        } : null,
+                        Room =
+                            b.Room != null
+                                ? new RoomSummaryDto
+                                {
+                                    Id = b.Room.Id,
+                                    Name = b.Room.Name,
+                                    Description = b.Room.Description,
+                                    DefaultPrice = b.Room.DefaultPrice,
+                                    MaxGuests = b.Room.MaxGuests,
+                                    MainPhotoUrl = b.Room.MainPhotoUrl,
+                                    Photos = b
+                                        .Room.Photos.Where(p => p.IsActive)
+                                        .OrderBy(p => p.DisplayOrder)
+                                        .Select(p => new RoomPhotoDTO
+                                        {
+                                            Id = p.Id,
+                                            FileName = p.FileName,
+                                            FileUrl = p.CdnUrl ?? p.S3Url,
+                                            LastModified = p.LastModified,
+                                        })
+                                        .ToList(),
+                                }
+                                : null,
 
-                        AdditionalFees = b.Payments
-                            .Where(p => p.PaymentType == PaymentType.Fee || p.PaymentType == PaymentType.Adjustment)
+                        Accommodation =
+                            b.Room != null && b.Room.Accommodation != null
+                                ? new AccommodationSummaryDto
+                                {
+                                    Id = b.Room.Accommodation.Id,
+                                    Name = b.Room.Accommodation.Name,
+                                    Description = b.Room.Accommodation.Description,
+                                    Logo = b.Room.Accommodation.Logo,
+                                    Address = b.Room.Accommodation.Address,
+                                    EmailAddress = b.Room.Accommodation.EmailAddress,
+                                    ContactNo = b.Room.Accommodation.ContactNo,
+                                    IsActive = b.Room.Accommodation.IsActive,
+                                    Status = b.Room.Accommodation.Status.ToString(),
+                                    PhotoUrls =
+                                        b.Room.Accommodation.Logo != null
+                                            ? new List<string> { b.Room.Accommodation.Logo }
+                                            : new List<string>(),
+                                }
+                                : null,
+
+                        AdditionalFees = b
+                            .Payments.Where(p =>
+                                p.PaymentType == PaymentType.Fee
+                                || p.PaymentType == PaymentType.Adjustment
+                            )
                             .Select(p => new BookingFeeDto
                             {
                                 FeeType = p.PaymentType.ToString(),
                                 Description = p.PaymentDescription,
                                 Amount = p.Amount,
                                 IsPercentage = false,
-                                PercentageRate = null
-                            }).ToList()
+                                PercentageRate = null,
+                            })
+                            .ToList(),
                     })
                     .FirstOrDefaultAsync();
 
@@ -273,7 +319,10 @@ namespace visita_booking_api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting booking details for {BookingId}", id);
-                return StatusCode(500, new { message = "An error occurred while retrieving booking details" });
+                return StatusCode(
+                    500,
+                    new { message = "An error occurred while retrieving booking details" }
+                );
             }
         }
 
@@ -281,7 +330,10 @@ namespace visita_booking_api.Controllers
         /// Cancel a booking (Admin)
         /// </summary>
         [HttpPost("{id}/cancel")]
-        public async Task<IActionResult> CancelBooking(int id, [FromBody] CancelBookingRequestDto request)
+        public async Task<IActionResult> CancelBooking(
+            int id,
+            [FromBody] CancelBookingRequestDto request
+        )
         {
             try
             {
@@ -295,14 +347,21 @@ namespace visita_booking_api.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error cancelling booking {BookingId}", id);
-                return StatusCode(500, new { message = "An error occurred while cancelling the booking" });
+                return StatusCode(
+                    500,
+                    new { message = "An error occurred while cancelling the booking" }
+                );
             }
         }
 
         private int? GetCurrentUserId()
         {
-            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            return string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId) ? null : userId;
+            var userIdClaim = User.FindFirst(
+                System.Security.Claims.ClaimTypes.NameIdentifier
+            )?.Value;
+            return string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId)
+                ? null
+                : userId;
         }
     }
 }
