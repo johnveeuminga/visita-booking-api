@@ -101,11 +101,11 @@ namespace visita_booking_api.Models.DTOs
     // Enhanced Search Request for Accommodation-based search
     public class AccommodationSearchRequestDTO
     {
-        [Required]
-        public DateTime CheckInDate { get; set; }
+        // [Required]
+        public DateTime? CheckInDate { get; set; }
 
-        [Required]
-        public DateTime CheckOutDate { get; set; }
+        // [Required]
+        public DateTime? CheckOutDate { get; set; }
 
         [Range(1, 9999)]
         public int Guests { get; set; } = 1;
@@ -115,7 +115,7 @@ namespace visita_booking_api.Models.DTOs
 
         // Pagination
         public int Page { get; set; } = 1;
-        public int PageSize { get; set; } = 10; // Accommodations per page
+        public int PageSize { get; set; } = 12; // Accommodations per page
 
         // Filters
         public decimal? MinPrice { get; set; } // Per room per night
@@ -139,7 +139,7 @@ namespace visita_booking_api.Models.DTOs
 
         // Advanced filters
         public List<int>? SpecificAccommodationIds { get; set; } // Filter to specific accommodations
-        public bool IncludeUnavailableAccommodations { get; set; } = false; // Show accommodations even if no rooms available
+        public bool IncludeUnavailableAccommodations { get; set; } = true; // Show accommodations even if no rooms available
     }
 
     // Sorting options for accommodation search
@@ -151,6 +151,6 @@ namespace visita_booking_api.Models.DTOs
         AvailableRooms, // Number of available rooms
         Popularity,
         LastUpdated,
-        TotalStayPrice // Total cost for the stay
+        TotalStayPrice, // Total cost for the stay
     }
 }
