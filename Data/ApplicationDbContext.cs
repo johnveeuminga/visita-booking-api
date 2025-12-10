@@ -48,6 +48,9 @@ namespace VisitaBookingApi.Data
         public DbSet<RefundPolicyTier> RefundPolicyTiers { get; set; }
         public DbSet<RefundRequest> RefundRequests { get; set; }
 
+        // Bulletin management entities
+        public DbSet<BulletinEvent> BulletinEvents { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -789,7 +792,26 @@ namespace VisitaBookingApi.Data
                     .OnDelete(DeleteBehavior.SetNull);
             });
 
-            // Seed default amenities
+            // BulletinEvent entity configuration
+            modelBuilder.Entity<BulletinEvent>(entity =>
+            {
+                entity.HasKey(be => be.Id);
+                entity.Property(be => be.Title).IsRequired().HasMaxLength(200);
+                entity.Property(be => be.Description).IsRequired();
+                entity.Property(be => be.EventType).IsRequired().HasMaxLength(50);
+                entity.Property(be => be.LinkUrl).HasMaxLength(500);
+
+                entity.HasIndex(be => be.StartDate);
+                entity.HasIndex(be => be.EndDate);
+                entity.HasIndex(be => be.EventType);
+                entity.HasIndex(be => be.CreatedAt);
+
+                entity
+                    .HasOne(be => be.Creator)
+                    .WithMany()
+                    .HasForeignKey(be => be.CreatedBy)
+                    .OnDelete(DeleteBehavior.SetNull);
+            }); // Seed default amenities
             SeedAmenities(modelBuilder);
         }
 
