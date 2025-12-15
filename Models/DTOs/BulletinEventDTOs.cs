@@ -9,6 +9,7 @@ namespace visita_booking_api.Models.DTOs
         public DateTime EndDate { get; set; }
         public string EventType { get; set; } = string.Empty;
         public string? LinkUrl { get; set; }
+        public bool IsTentative { get; set; } = false;
     }
 
     public class UpdateBulletinEventRequest
@@ -19,6 +20,7 @@ namespace visita_booking_api.Models.DTOs
         public DateTime EndDate { get; set; }
         public string EventType { get; set; } = string.Empty;
         public string? LinkUrl { get; set; }
+        public bool IsTentative { get; set; } = false;
     }
 
     // Response DTOs
@@ -31,6 +33,8 @@ namespace visita_booking_api.Models.DTOs
         public DateTime EndDate { get; set; }
         public string EventType { get; set; } = string.Empty;
         public string? LinkUrl { get; set; }
+        public bool IsTentative { get; set; } = false;
+
         public int? CreatedBy { get; set; }
         public string? CreatorName { get; set; }
         public DateTime CreatedAt { get; set; }
@@ -65,5 +69,6 @@ namespace visita_booking_api.Models.DTOs
         public bool IsMultiDay { get; set; }
         public bool IsStartDate { get; set; }
         public bool IsEndDate { get; set; }
+        public bool IsTentative { get; set; } = false;
     }
 }

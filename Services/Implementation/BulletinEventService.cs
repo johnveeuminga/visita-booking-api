@@ -52,6 +52,7 @@ namespace visita_booking_api.Services.Implementation
                         IsMultiDay = e.StartDate.Date != e.EndDate.Date,
                         IsStartDate = e.StartDate.Date == currentDate.Date,
                         IsEndDate = e.EndDate.Date == currentDate.Date,
+                        IsTentative = e.IsTentative,
                     })
                     .ToList();
 
@@ -117,6 +118,7 @@ namespace visita_booking_api.Services.Implementation
                 EndDate = request.EndDate,
                 EventType = request.EventType,
                 LinkUrl = request.LinkUrl,
+                IsTentative = request.IsTentative,
                 CreatedBy = userId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
@@ -146,6 +148,8 @@ namespace visita_booking_api.Services.Implementation
             bulletinEvent.EndDate = request.EndDate;
             bulletinEvent.EventType = request.EventType;
             bulletinEvent.LinkUrl = request.LinkUrl;
+            bulletinEvent.IsTentative = request.IsTentative;
+
             bulletinEvent.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -179,6 +183,7 @@ namespace visita_booking_api.Services.Implementation
                 EndDate = bulletinEvent.EndDate,
                 EventType = bulletinEvent.EventType,
                 LinkUrl = bulletinEvent.LinkUrl,
+                IsTentative = bulletinEvent.IsTentative,
                 CreatedBy = bulletinEvent.CreatedBy,
                 CreatorName = bulletinEvent.Creator?.FullName,
                 CreatedAt = bulletinEvent.CreatedAt,

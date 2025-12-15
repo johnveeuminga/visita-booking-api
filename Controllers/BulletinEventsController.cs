@@ -7,7 +7,7 @@ using visita_booking_api.Services.Interfaces;
 namespace visita_booking_api.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/bulletinevents")]
     public class BulletinEventsController : ControllerBase
     {
         private readonly IBulletinEventService _bulletinEventService;
