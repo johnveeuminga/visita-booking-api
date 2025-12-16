@@ -43,6 +43,14 @@ namespace VisitaBookingApi.Data
         public DbSet<BookingPayment> BookingPayments { get; set; }
         public DbSet<BookingAvailabilityLock> BookingAvailabilityLocks { get; set; }
 
+        // Refund management entities
+        public DbSet<RefundPolicy> RefundPolicies { get; set; }
+        public DbSet<RefundPolicyTier> RefundPolicyTiers { get; set; }
+        public DbSet<RefundRequest> RefundRequests { get; set; }
+
+        // Bulletin management entities
+        public DbSet<BulletinEvent> BulletinEvents { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -713,8 +721,97 @@ namespace VisitaBookingApi.Data
                     .HasForeignKey(eh => eh.EstablishmentId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
+            // RefundPolicy entity configuration
+            modelBuilder.Entity<RefundPolicy>(entity =>
+            {
+                entity.HasKey(rp => rp.Id);
+                entity.Property(rp => rp.PolicyType).HasConversion<string>().IsRequired();
+                entity.Property(rp => rp.Description).HasMaxLength(1000);
+                entity.HasIndex(rp => new { rp.AccommodationId, rp.IsActive });
 
-            // Seed default amenities
+                entity
+                    .HasOne(rp => rp.Accommodation)
+                    .WithMany()
+                    .HasForeignKey(rp => rp.AccommodationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity
+                    .HasOne(rp => rp.Creator)
+                    .WithMany()
+                    .HasForeignKey(rp => rp.CreatedBy)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // RefundPolicyTier entity configuration
+            modelBuilder.Entity<RefundPolicyTier>(entity =>
+            {
+                entity.HasKey(rpt => rpt.Id);
+                entity.Property(rpt => rpt.RefundPercentage).HasPrecision(5, 2);
+                entity.HasIndex(rpt => new { rpt.RefundPolicyId, rpt.DisplayOrder });
+
+                entity
+                    .HasOne(rpt => rpt.RefundPolicy)
+                    .WithMany(rp => rp.Tiers)
+                    .HasForeignKey(rpt => rpt.RefundPolicyId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // RefundRequest entity configuration
+            modelBuilder.Entity<RefundRequest>(entity =>
+            {
+                entity.HasKey(rr => rr.Id);
+                entity.Property(rr => rr.Status).HasConversion<string>().IsRequired();
+                entity.Property(rr => rr.RefundAmount).HasPrecision(12, 2);
+                entity.Property(rr => rr.RefundPercentage).HasPrecision(5, 2);
+                entity.Property(rr => rr.OriginalAmount).HasPrecision(12, 2);
+                entity.Property(rr => rr.EligibilityReason).HasMaxLength(500);
+                entity.Property(rr => rr.CancellationReason).HasMaxLength(1000);
+                entity.Property(rr => rr.RejectionReason).HasMaxLength(1000);
+                entity.Property(rr => rr.PolicySnapshotJson).HasColumnType("json");
+
+                entity.HasIndex(rr => rr.BookingId);
+                entity.HasIndex(rr => rr.Status);
+                entity.HasIndex(rr => rr.RequestedAt);
+
+                entity
+                    .HasOne(rr => rr.Booking)
+                    .WithMany()
+                    .HasForeignKey(rr => rr.BookingId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity
+                    .HasOne(rr => rr.RequestedBy)
+                    .WithMany()
+                    .HasForeignKey(rr => rr.RequestedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity
+                    .HasOne(rr => rr.ProcessedByAdmin)
+                    .WithMany()
+                    .HasForeignKey(rr => rr.ProcessedByAdminId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // BulletinEvent entity configuration
+            modelBuilder.Entity<BulletinEvent>(entity =>
+            {
+                entity.HasKey(be => be.Id);
+                entity.Property(be => be.Title).IsRequired().HasMaxLength(200);
+                entity.Property(be => be.Description).IsRequired();
+                entity.Property(be => be.EventType).IsRequired().HasMaxLength(50);
+                entity.Property(be => be.LinkUrl).HasMaxLength(500);
+
+                entity.HasIndex(be => be.StartDate);
+                entity.HasIndex(be => be.EndDate);
+                entity.HasIndex(be => be.EventType);
+                entity.HasIndex(be => be.CreatedAt);
+
+                entity
+                    .HasOne(be => be.Creator)
+                    .WithMany()
+                    .HasForeignKey(be => be.CreatedBy)
+                    .OnDelete(DeleteBehavior.SetNull);
+            }); // Seed default amenities
             SeedAmenities(modelBuilder);
         }
 
