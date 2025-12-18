@@ -551,10 +551,26 @@ namespace visita_booking_api.Controllers
                     IsActive = r.IsActive,
                     UpdatedAt = r.UpdatedAt,
                     MainPhotoUrl =
-                        r.Photos.OrderBy(p => p.Id).FirstOrDefault() != null
-                            ? r.Photos.OrderBy(p => p.Id).FirstOrDefault()!.S3Url
+                        r.Photos.Where(p => p.IsActive)
+                            .OrderBy(p => p.DisplayOrder)
+                            .FirstOrDefault() != null
+                            ? (
+                                r.Photos.Where(p => p.IsActive)
+                                    .OrderBy(p => p.DisplayOrder)
+                                    .FirstOrDefault()!
+                                    .CdnUrl
+                                ?? r.Photos.Where(p => p.IsActive)
+                                    .OrderBy(p => p.DisplayOrder)
+                                    .FirstOrDefault()!
+                                    .S3Url
+                            )
                             : null,
-                    PhotoCount = r.Photos.Count,
+                    PhotoUrls = r
+                        .Photos.Where(p => p.IsActive)
+                        .OrderBy(p => p.DisplayOrder)
+                        .Select(p => p.CdnUrl ?? p.S3Url)
+                        .ToList(),
+                    PhotoCount = r.Photos.Count(p => p.IsActive),
                     AmenityCount = r.RoomAmenities.Count,
                     MainAmenities = r
                         .RoomAmenities.OrderBy(ra => ra.Amenity.Name)
@@ -564,7 +580,6 @@ namespace visita_booking_api.Controllers
                 })
                 .OrderBy(r => r.Name)
                 .ToListAsync();
-
             return Ok(rooms);
         }
 

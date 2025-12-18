@@ -30,6 +30,7 @@ namespace visita_booking_api.Models.DTOs
         public bool IsActive { get; set; }
         public DateTime UpdatedAt { get; set; }
         public string? MainPhotoUrl { get; set; }
+        public List<string> PhotoUrls { get; set; } = new();
         public int PhotoCount { get; set; }
         public int AmenityCount { get; set; }
         public List<string> MainAmenities { get; set; } = new();
@@ -40,17 +41,17 @@ namespace visita_booking_api.Models.DTOs
     {
         [Required]
         public string Name { get; set; } = string.Empty;
-        
+
         public string Description { get; set; } = string.Empty;
-        
+
         [Required]
         public decimal DefaultPrice { get; set; }
-        
+
         [Range(1, 9999)]
         public int MaxGuests { get; set; } = 2;
-        
+
         public List<int> AmenityIds { get; set; } = new();
-        
+
         // Photo upload support
         public List<IFormFile>? PhotoFiles { get; set; }
 
@@ -95,7 +96,7 @@ namespace visita_booking_api.Models.DTOs
     {
         [Required]
         public IFormFile File { get; set; } = null!;
-        
+
         public int DisplayOrder { get; set; }
         public string? AltText { get; set; }
     }
@@ -115,9 +116,9 @@ namespace visita_booking_api.Models.DTOs
     {
         [Required]
         public string Name { get; set; } = string.Empty;
-        
+
         public string Description { get; set; } = string.Empty;
-        
+
         [Required]
         public AmenityCategory Category { get; set; }
     }
@@ -126,9 +127,9 @@ namespace visita_booking_api.Models.DTOs
     {
         [Required]
         public string Name { get; set; } = string.Empty;
-        
+
         public string Description { get; set; } = string.Empty;
-        
+
         [Required]
         public AmenityCategory Category { get; set; }
     }
