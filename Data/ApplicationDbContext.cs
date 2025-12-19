@@ -50,6 +50,7 @@ namespace VisitaBookingApi.Data
 
         // Bulletin management entities
         public DbSet<BulletinEvent> BulletinEvents { get; set; }
+        public DbSet<FeaturedEvent> FeaturedEvents { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
