@@ -48,6 +48,9 @@ namespace VisitaBookingApi.Data
         public DbSet<RefundPolicyTier> RefundPolicyTiers { get; set; }
         public DbSet<RefundRequest> RefundRequests { get; set; }
 
+        // Park management entities
+        public DbSet<Park> Parks { get; set; }
+
         // Bulletin management entities
         public DbSet<BulletinEvent> BulletinEvents { get; set; }
 
