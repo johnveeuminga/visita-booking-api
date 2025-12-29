@@ -27,7 +27,10 @@ namespace visita_booking_api.Services.Implementation
 
         public async Task<List<ParkDto>> GetAllParksAsync()
         {
-            var parks = await _context.Parks.OrderByDescending(p => p.CreatedAt).ToListAsync();
+            var parks = await _context
+                .Parks.Include(p => p.Images)
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
 
             return parks.Select(MapToDto).ToList();
         }
@@ -35,7 +38,8 @@ namespace visita_booking_api.Services.Implementation
         public async Task<List<ParkDto>> GetActiveParksAsync()
         {
             var parks = await _context
-                .Parks.Where(p => p.IsActive)
+                .Parks.Include(p => p.Images)
+                .Where(p => p.IsActive)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();
 
@@ -44,7 +48,10 @@ namespace visita_booking_api.Services.Implementation
 
         public async Task<ParkDto?> GetParkByIdAsync(int id)
         {
-            var park = await _context.Parks.FindAsync(id);
+            var park = await _context
+                .Parks.Include(p => p.Images)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
             return park == null ? null : MapToDto(park);
         }
 
@@ -71,6 +78,7 @@ namespace visita_booking_api.Services.Implementation
                 HasParking = createDto.HasParking,
                 ParkingSlots = createDto.ParkingSlots,
                 ParkingFee = createDto.ParkingFee,
+                DisplayOrder = createDto.DisplayOrder,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
@@ -119,6 +127,7 @@ namespace visita_booking_api.Services.Implementation
             park.HasParking = updateDto.HasParking;
             park.ParkingSlots = updateDto.ParkingSlots;
             park.ParkingFee = updateDto.ParkingFee;
+            park.DisplayOrder = updateDto.DisplayOrder;
             park.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -150,24 +159,91 @@ namespace visita_booking_api.Services.Implementation
             return true;
         }
 
-        public async Task<bool> ToggleActiveAsync(int id)
+        public async Task<ParkImageDto> AddParkImageAsync(
+            int parkId,
+            IFormFile imageFile,
+            int displayOrder
+        )
         {
-            var park = await _context.Parks.FindAsync(id);
+            var park = await _context.Parks.FindAsync(parkId);
             if (park == null)
+            {
+                throw new KeyNotFoundException($"Park with ID {parkId} not found");
+            }
+
+            var uploadResult = await _fileUploadService.UploadFileAsync(imageFile, "parks");
+
+            var parkImage = new ParkImage
+            {
+                ParkId = parkId,
+                ImageUrl = uploadResult.FileUrl,
+                DisplayOrder = displayOrder,
+                CreatedAt = DateTime.UtcNow,
+            };
+
+            _context.ParkImages.Add(parkImage);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "Image added to park {ParkName} (ID: {ParkId})",
+                park.Name,
+                parkId
+            );
+
+            return new ParkImageDto
+            {
+                Id = parkImage.Id,
+                ParkId = parkImage.ParkId,
+                ImageUrl = parkImage.ImageUrl,
+                DisplayOrder = parkImage.DisplayOrder,
+                CreatedAt = parkImage.CreatedAt,
+            };
+        }
+
+        public async Task<bool> DeleteParkImageAsync(int parkId, int imageId)
+        {
+            var parkImage = await _context.ParkImages.FirstOrDefaultAsync(pi =>
+                pi.Id == imageId && pi.ParkId == parkId
+            );
+
+            if (parkImage == null)
             {
                 return false;
             }
 
-            park.IsActive = !park.IsActive;
-            park.UpdatedAt = DateTime.UtcNow;
+            await _fileUploadService.DeleteFileAsync(parkImage.ImageUrl);
 
+            _context.ParkImages.Remove(parkImage);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Image {ImageId} deleted from park {ParkId}", imageId, parkId);
+
+            return true;
+        }
+
+        public async Task<bool> UpdateParkImageOrderAsync(
+            int parkId,
+            int imageId,
+            int newDisplayOrder
+        )
+        {
+            var parkImage = await _context.ParkImages.FirstOrDefaultAsync(pi =>
+                pi.Id == imageId && pi.ParkId == parkId
+            );
+
+            if (parkImage == null)
+            {
+                return false;
+            }
+
+            parkImage.DisplayOrder = newDisplayOrder;
             await _context.SaveChangesAsync();
 
             _logger.LogInformation(
-                "Park {ParkName} (ID: {ParkId}) active status toggled to {IsActive}",
-                park.Name,
-                park.Id,
-                park.IsActive
+                "Image {ImageId} display order updated to {DisplayOrder} for park {ParkId}",
+                imageId,
+                newDisplayOrder,
+                parkId
             );
 
             return true;
@@ -188,10 +264,30 @@ namespace visita_booking_api.Services.Implementation
                 HasParking = park.HasParking,
                 ParkingSlots = park.ParkingSlots,
                 ParkingFee = park.ParkingFee,
+                DisplayOrder = park.DisplayOrder,
                 IsActive = park.IsActive,
                 CreatedAt = park.CreatedAt,
                 UpdatedAt = park.UpdatedAt,
+                Images = MapParkImages(park.Images),
             };
+        }
+
+        private static List<ParkImageDto> MapParkImages(ICollection<ParkImage>? images)
+        {
+            if (images == null || !images.Any())
+                return new();
+
+            return images
+                .OrderBy(img => img.DisplayOrder)
+                .Select(img => new ParkImageDto
+                {
+                    Id = img.Id,
+                    ParkId = img.ParkId,
+                    ImageUrl = img.ImageUrl,
+                    DisplayOrder = img.DisplayOrder,
+                    CreatedAt = img.CreatedAt,
+                })
+                .ToList();
         }
     }
 }

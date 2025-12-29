@@ -50,6 +50,7 @@ namespace VisitaBookingApi.Data
 
         // Park management entities
         public DbSet<Park> Parks { get; set; }
+        public DbSet<ParkImage> ParkImages { get; set; }
 
         // Bulletin management entities
         public DbSet<BulletinEvent> BulletinEvents { get; set; }
@@ -814,7 +815,22 @@ namespace VisitaBookingApi.Data
                     .WithMany()
                     .HasForeignKey(be => be.CreatedBy)
                     .OnDelete(DeleteBehavior.SetNull);
-            }); // Seed default amenities
+            });
+            // ParkImage entity configuration - ADD THIS
+            modelBuilder.Entity<ParkImage>(entity =>
+            {
+                entity.ToTable("park_images");
+                entity.HasKey(pi => pi.Id);
+                entity.Property(pi => pi.ImageUrl).IsRequired().HasMaxLength(500);
+                entity.HasIndex(pi => new { pi.ParkId, pi.DisplayOrder });
+
+                entity
+                    .HasOne(pi => pi.Park)
+                    .WithMany(p => p.Images)
+                    .HasForeignKey(pi => pi.ParkId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+            // Seed default amenities
             SeedAmenities(modelBuilder);
         }
 

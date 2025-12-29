@@ -16,8 +16,19 @@ namespace visita_booking_api.Models.DTOs
         public int? ParkingSlots { get; set; }
         public decimal? ParkingFee { get; set; }
         public bool IsActive { get; set; }
+        public int DisplayOrder { get; set; } = 1;
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+        public List<ParkImageDto> Images { get; set; } = new();
+    }
+
+    public class ParkImageDto
+    {
+        public int Id { get; set; }
+        public int ParkId { get; set; }
+        public string ImageUrl { get; set; } = string.Empty;
+        public int DisplayOrder { get; set; }
+        public DateTime CreatedAt { get; set; }
     }
 
     public class CreateParkDto
@@ -50,6 +61,10 @@ namespace visita_booking_api.Models.DTOs
         public int? ParkingSlots { get; set; }
 
         public decimal? ParkingFee { get; set; }
+
+        [Required]
+        [Range(1, int.MaxValue)]
+        public int DisplayOrder { get; set; } = 1;
     }
 
     public class UpdateParkDto
@@ -82,5 +97,16 @@ namespace visita_booking_api.Models.DTOs
         public int? ParkingSlots { get; set; }
 
         public decimal? ParkingFee { get; set; }
+
+        [Required]
+        [Range(1, int.MaxValue)]
+        public int DisplayOrder { get; set; } = 1;
+    }
+
+    public class UpdateImageOrderDto
+    {
+        [Required]
+        [Range(1, int.MaxValue)]
+        public int DisplayOrder { get; set; }
     }
 }

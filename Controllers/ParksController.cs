@@ -92,13 +92,28 @@ namespace visita_booking_api.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<ParkDto>> CreatePark(
             [FromForm] CreateParkDto createDto,
-            [FromForm] IFormFile? imageFile
+            [FromForm] IFormFile? imageFile,
+            [FromForm] List<IFormFile>? additionalImages // ← ADD THIS PARAMETER
         )
         {
             try
             {
                 var park = await _parkService.CreateParkAsync(createDto, imageFile);
-                return CreatedAtAction(nameof(GetParkById), new { id = park.Id }, park);
+
+                // Add additional images if provided
+                if (additionalImages != null && additionalImages.Any())
+                {
+                    int displayOrder = 1;
+                    foreach (var image in additionalImages)
+                    {
+                        await _parkService.AddParkImageAsync(park.Id, image, displayOrder++);
+                    }
+                }
+
+                // Fetch the complete park with images
+                var completePark = await _parkService.GetParkByIdAsync(park.Id);
+
+                return CreatedAtAction(nameof(GetParkById), new { id = park.Id }, completePark); // ← RETURN completePark
             }
             catch (Exception ex)
             {
@@ -118,13 +133,34 @@ namespace visita_booking_api.Controllers
         public async Task<ActionResult<ParkDto>> UpdatePark(
             int id,
             [FromForm] UpdateParkDto updateDto,
-            [FromForm] IFormFile? imageFile
+            [FromForm] IFormFile? imageFile,
+            [FromForm] List<IFormFile>? additionalImages // ← ADD THIS PARAMETER
         )
         {
             try
             {
                 var park = await _parkService.UpdateParkAsync(id, updateDto, imageFile);
-                return Ok(park);
+
+                // Add additional images if provided
+                if (additionalImages != null && additionalImages.Any())
+                {
+                    // Get current max display order
+                    var existingPark = await _parkService.GetParkByIdAsync(id);
+                    int displayOrder =
+                        existingPark?.Images.Any() == true
+                            ? existingPark.Images.Max(img => img.DisplayOrder) + 1
+                            : 1;
+
+                    foreach (var image in additionalImages)
+                    {
+                        await _parkService.AddParkImageAsync(id, image, displayOrder++);
+                    }
+                }
+
+                // Fetch the complete park with images
+                var completePark = await _parkService.GetParkByIdAsync(id);
+
+                return Ok(completePark); // ← RETURN completePark
             }
             catch (KeyNotFoundException)
             {
@@ -168,28 +204,102 @@ namespace visita_booking_api.Controllers
         }
 
         /// <summary>
-        /// Toggle park active status (admin only)
+        /// Add an image to a park (admin only)
         /// </summary>
-        [HttpPatch("admin/parks/{id}/toggle-active")]
+        [HttpPost("admin/parks/{parkId}/images")]
         [Authorize(Roles = "Admin")]
-        public async Task<ActionResult> ToggleActive(int id)
+        public async Task<ActionResult<ParkImageDto>> AddParkImage(
+            int parkId,
+            [FromForm] IFormFile imageFile,
+            [FromForm] int displayOrder = 1
+        )
         {
             try
             {
-                var result = await _parkService.ToggleActiveAsync(id);
-                if (!result)
+                if (imageFile == null)
                 {
-                    return NotFound(new { message = "Park not found" });
+                    return BadRequest(new { message = "Image file is required" });
                 }
 
-                return Ok(new { message = "Park status updated successfully" });
+                var parkImage = await _parkService.AddParkImageAsync(
+                    parkId,
+                    imageFile,
+                    displayOrder
+                );
+                return Ok(parkImage);
+            }
+            catch (KeyNotFoundException)
+            {
+                return NotFound(new { message = "Park not found" });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error toggling park status {ParkId}", id);
+                _logger.LogError(ex, "Error adding image to park {ParkId}", parkId);
                 return StatusCode(
                     500,
-                    new { message = "An error occurred while updating park status" }
+                    new { message = "An error occurred while adding the image" }
+                );
+            }
+        }
+
+        /// <summary>
+        /// Delete a park image (admin only)
+        /// </summary>
+        [HttpDelete("admin/parks/{parkId}/images/{imageId}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult> DeleteParkImage(int parkId, int imageId)
+        {
+            try
+            {
+                var result = await _parkService.DeleteParkImageAsync(parkId, imageId);
+                if (!result)
+                {
+                    return NotFound(new { message = "Park image not found" });
+                }
+
+                return Ok(new { message = "Park image deleted successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting park image {ImageId}", imageId);
+                return StatusCode(
+                    500,
+                    new { message = "An error occurred while deleting the image" }
+                );
+            }
+        }
+
+        /// <summary>
+        /// Update park image display order (admin only)
+        /// </summary>
+        [HttpPatch("admin/parks/{parkId}/images/{imageId}/order")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult> UpdateParkImageOrder(
+            int parkId,
+            int imageId,
+            [FromBody] UpdateImageOrderDto dto
+        )
+        {
+            try
+            {
+                var result = await _parkService.UpdateParkImageOrderAsync(
+                    parkId,
+                    imageId,
+                    dto.DisplayOrder
+                );
+                if (!result)
+                {
+                    return NotFound(new { message = "Park image not found" });
+                }
+
+                return Ok(new { message = "Image order updated successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error updating park image order {ImageId}", imageId);
+                return StatusCode(
+                    500,
+                    new { message = "An error occurred while updating the image order" }
                 );
             }
         }

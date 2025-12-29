@@ -23,7 +23,7 @@ namespace visita_booking_api.Models.Entities
 
         [Required]
         [MaxLength(50)]
-        public string Category { get; set; } = string.Empty; // park, museum, garden, landmark
+        public string Category { get; set; } = string.Empty;
 
         [MaxLength(500)]
         public string? ImageUrl { get; set; }
@@ -44,8 +44,34 @@ namespace visita_booking_api.Models.Entities
 
         public bool IsActive { get; set; } = true;
 
+        [Required]
+        public int DisplayOrder { get; set; } = 1;
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+        public ICollection<ParkImage> Images { get; set; } = new List<ParkImage>();
+    }
+
+    public class ParkImage
+    {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+
+        [Required]
+        public int ParkId { get; set; }
+
+        [Required]
+        [MaxLength(500)]
+        public string ImageUrl { get; set; } = string.Empty;
+
+        public int DisplayOrder { get; set; } = 1;
+
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        [ForeignKey("ParkId")]
+        public Park? Park { get; set; }
     }
 }
