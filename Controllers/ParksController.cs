@@ -93,34 +93,66 @@ namespace visita_booking_api.Controllers
         public async Task<ActionResult<ParkDto>> CreatePark(
             [FromForm] CreateParkDto createDto,
             [FromForm] IFormFile? imageFile,
-            [FromForm] List<IFormFile>? additionalImages // ← ADD THIS PARAMETER
+            [FromForm] List<IFormFile>? additionalImages
         )
         {
             try
             {
+                _logger.LogInformation("Creating park: {ParkName}", createDto.Name);
+
                 var park = await _parkService.CreateParkAsync(createDto, imageFile);
+                _logger.LogInformation("Park created with ID: {ParkId}", park.Id);
 
                 // Add additional images if provided
                 if (additionalImages != null && additionalImages.Any())
                 {
+                    _logger.LogInformation(
+                        "Uploading {Count} additional images for park {ParkId}",
+                        additionalImages.Count,
+                        park.Id
+                    );
+
                     int displayOrder = 1;
                     foreach (var image in additionalImages)
                     {
-                        await _parkService.AddParkImageAsync(park.Id, image, displayOrder++);
+                        try
+                        {
+                            _logger.LogInformation(
+                                "Uploading additional image {Order} for park {ParkId}",
+                                displayOrder,
+                                park.Id
+                            );
+                            await _parkService.AddParkImageAsync(park.Id, image, displayOrder++);
+                        }
+                        catch (Exception imgEx)
+                        {
+                            _logger.LogError(
+                                imgEx,
+                                "Failed to upload additional image {Order} for park {ParkId}",
+                                displayOrder - 1,
+                                park.Id
+                            );
+                            // Continue with other images even if one fails
+                        }
                     }
                 }
 
                 // Fetch the complete park with images
                 var completePark = await _parkService.GetParkByIdAsync(park.Id);
 
-                return CreatedAtAction(nameof(GetParkById), new { id = park.Id }, completePark); // ← RETURN completePark
+                return CreatedAtAction(nameof(GetParkById), new { id = park.Id }, completePark);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error creating park");
+                _logger.LogError(ex, "Error creating park: {Message}", ex.Message);
                 return StatusCode(
                     500,
-                    new { message = "An error occurred while creating the park" }
+                    new
+                    {
+                        message = "An error occurred while creating the park",
+                        error = ex.Message, // ← ADD THIS for debugging
+                        innerError = ex.InnerException?.Message, // ← ADD THIS too
+                    }
                 );
             }
         }

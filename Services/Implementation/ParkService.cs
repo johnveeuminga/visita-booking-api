@@ -171,7 +171,25 @@ namespace visita_booking_api.Services.Implementation
                 throw new KeyNotFoundException($"Park with ID {parkId} not found");
             }
 
+            // Upload to S3 and get the URL
             var uploadResult = await _fileUploadService.UploadFileAsync(imageFile, "parks");
+
+            // Validate upload result
+            if (uploadResult == null || string.IsNullOrEmpty(uploadResult.FileUrl))
+            {
+                _logger.LogError(
+                    "S3 upload failed for park {ParkId}, upload result is null or empty",
+                    parkId
+                );
+                throw new Exception(
+                    "Failed to upload image to S3 - upload result is null or empty"
+                );
+            }
+
+            _logger.LogInformation(
+                "Successfully uploaded image to S3: {ImageUrl}",
+                uploadResult.FileUrl
+            );
 
             var parkImage = new ParkImage
             {
