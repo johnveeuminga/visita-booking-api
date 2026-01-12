@@ -29,6 +29,7 @@ namespace visita_booking_api.Services
             services.AddScoped<IEmailService, SendGridEmailService>();
             services.AddScoped<IRefundService, RefundService>();
             services.AddScoped<IBulletinEventService, BulletinEventService>();
+            services.AddScoped<IParkService, ParkService>(); // ← Park service
 
             // Development data seeding service
             services.AddScoped<IDevelopmentDataSeedingService, DevelopmentDataSeedingService>();
