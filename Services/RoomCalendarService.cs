@@ -1,26 +1,27 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using visita_booking_api.Models.DTOs;
 using visita_booking_api.Models.Entities;
-using VisitaBookingApi.Data;
 using visita_booking_api.Services.Interfaces;
-using System.Globalization;
+using VisitaBookingApi.Data;
 
 namespace visita_booking_api.Services
 {
     public class RoomCalendarService : IRoomCalendarService
     {
-    private readonly ApplicationDbContext _context;
-    private readonly ICacheInvalidationService _cacheInvalidation;
-    private readonly ILogger<RoomCalendarService> _logger;
-    private readonly IConfiguration _configuration;
-    private readonly visita_booking_api.Services.Interfaces.IAvailabilityLedgerService _ledgerService;
+        private readonly ApplicationDbContext _context;
+        private readonly ICacheInvalidationService _cacheInvalidation;
+        private readonly ILogger<RoomCalendarService> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly visita_booking_api.Services.Interfaces.IAvailabilityLedgerService _ledgerService;
 
         public RoomCalendarService(
             ApplicationDbContext context,
             ICacheInvalidationService cacheInvalidation,
             ILogger<RoomCalendarService> logger,
             IConfiguration configuration,
-            visita_booking_api.Services.Interfaces.IAvailabilityLedgerService ledgerService)
+            visita_booking_api.Services.Interfaces.IAvailabilityLedgerService ledgerService
+        )
         {
             _context = context;
             _cacheInvalidation = cacheInvalidation;
@@ -40,13 +41,15 @@ namespace visita_booking_api.Services
             var endDate = startDate.AddMonths(1).AddDays(-1);
 
             // Get all overrides for the month
-            var overrides = await _context.RoomAvailabilityOverrides
-                .Where(o => o.RoomId == roomId && o.Date >= startDate && o.Date <= endDate)
+            var overrides = await _context
+                .RoomAvailabilityOverrides.Where(o =>
+                    o.RoomId == roomId && o.Date >= startDate && o.Date <= endDate
+                )
                 .ToDictionaryAsync(o => o.Date.Date);
 
             // Get holidays for the month
-            var holidays = await _context.HolidayCalendar
-                .Where(h => h.Date >= startDate && h.Date <= endDate && h.IsActive)
+            var holidays = await _context
+                .HolidayCalendar.Where(h => h.Date >= startDate && h.Date <= endDate && h.IsActive)
                 .ToDictionaryAsync(h => h.Date.Date);
 
             // Get pricing rules
@@ -61,7 +64,14 @@ namespace visita_booking_api.Services
 
             for (var date = startDate; date <= endDate; date = date.AddDays(1))
             {
-                var dayDto = await CreateCalendarDayDTOAsync(roomId, date, overrides, holidays, pricingRules, room.DefaultPrice);
+                var dayDto = await CreateCalendarDayDTOAsync(
+                    roomId,
+                    date,
+                    overrides,
+                    holidays,
+                    pricingRules,
+                    room.DefaultPrice
+                );
                 days.Add(dayDto);
 
                 // Update statistics
@@ -74,8 +84,10 @@ namespace visita_booking_api.Services
 
                 if (dayDto.Price.HasValue)
                 {
-                    if (dayDto.Price.Value < minPrice) minPrice = dayDto.Price.Value;
-                    if (dayDto.Price.Value > maxPrice) maxPrice = dayDto.Price.Value;
+                    if (dayDto.Price.Value < minPrice)
+                        minPrice = dayDto.Price.Value;
+                    if (dayDto.Price.Value > maxPrice)
+                        maxPrice = dayDto.Price.Value;
                 }
             }
 
@@ -90,11 +102,15 @@ namespace visita_booking_api.Services
                 MaxPrice = maxPrice == decimal.MinValue ? null : maxPrice,
                 AvailableDays = availableDays,
                 BookedDays = bookedDays,
-                BlockedDays = blockedDays
+                BlockedDays = blockedDays,
             };
         }
 
-        public async Task<RoomAvailabilityRangeDTO> GetAvailabilityRangeAsync(int roomId, DateTime startDate, DateTime endDate)
+        public async Task<RoomAvailabilityRangeDTO> GetAvailabilityRangeAsync(
+            int roomId,
+            DateTime startDate,
+            DateTime endDate
+        )
         {
             if (!await ValidateDateRangeAsync(startDate, endDate))
                 throw new ArgumentException("Invalid date range");
@@ -116,17 +132,23 @@ namespace visita_booking_api.Services
                 TotalPrice = totalPrice,
                 AveragePrice = averagePrice,
                 AvailableDays = availableDays,
-                UnavailableDays = unavailableDays
+                UnavailableDays = unavailableDays,
             };
         }
 
         // Availability Management
-        public async Task<List<RoomAvailabilityDTO>> CheckAvailabilityAsync(int roomId, DateTime startDate, DateTime endDate)
+        public async Task<List<RoomAvailabilityDTO>> CheckAvailabilityAsync(
+            int roomId,
+            DateTime startDate,
+            DateTime endDate
+        )
         {
             var availability = new List<RoomAvailabilityDTO>();
 
-            var overrides = await _context.RoomAvailabilityOverrides
-                .Where(o => o.RoomId == roomId && o.Date >= startDate && o.Date <= endDate)
+            var overrides = await _context
+                .RoomAvailabilityOverrides.Where(o =>
+                    o.RoomId == roomId && o.Date >= startDate && o.Date <= endDate
+                )
                 .ToDictionaryAsync(o => o.Date.Date);
 
             for (var date = startDate; date <= endDate; date = date.AddDays(1))
@@ -145,15 +167,17 @@ namespace visita_booking_api.Services
                     reason = overrideData.Reason;
                 }
 
-                availability.Add(new RoomAvailabilityDTO
-                {
-                    RoomId = roomId,
-                    Date = date,
-                    IsAvailable = isAvailable,
-                    Price = price,
-                    Notes = notes,
-                    Reason = reason
-                });
+                availability.Add(
+                    new RoomAvailabilityDTO
+                    {
+                        RoomId = roomId,
+                        Date = date,
+                        IsAvailable = isAvailable,
+                        Price = price,
+                        Notes = notes,
+                        Reason = reason,
+                    }
+                );
             }
 
             return availability;
@@ -161,8 +185,9 @@ namespace visita_booking_api.Services
 
         public async Task<bool> IsAvailableAsync(int roomId, DateTime date)
         {
-            var override_ = await _context.RoomAvailabilityOverrides
-                .FirstOrDefaultAsync(o => o.RoomId == roomId && o.Date == date.Date);
+            var override_ = await _context.RoomAvailabilityOverrides.FirstOrDefaultAsync(o =>
+                o.RoomId == roomId && o.Date == date.Date
+            );
 
             if (override_ != null)
                 return override_.IsAvailable;
@@ -172,10 +197,14 @@ namespace visita_booking_api.Services
             return room?.IsActive ?? false;
         }
 
-        public async Task<RoomAvailabilityOverrideDTO> SetAvailabilityOverrideAsync(int roomId, RoomAvailabilityOverrideCreateDTO overrideDto)
+        public async Task<RoomAvailabilityOverrideDTO> SetAvailabilityOverrideAsync(
+            int roomId,
+            RoomAvailabilityOverrideCreateDTO overrideDto
+        )
         {
-            var existingOverride = await _context.RoomAvailabilityOverrides
-                .FirstOrDefaultAsync(o => o.RoomId == roomId && o.Date == overrideDto.Date.Date);
+            var existingOverride = await _context.RoomAvailabilityOverrides.FirstOrDefaultAsync(o =>
+                o.RoomId == roomId && o.Date == overrideDto.Date.Date
+            );
 
             if (existingOverride != null)
             {
@@ -199,7 +228,7 @@ namespace visita_booking_api.Services
                     Reason = overrideDto.Reason,
                     CreatedBy = "System", // TODO: Get from current user context
                     CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
                 };
 
                 _context.RoomAvailabilityOverrides.Add(existingOverride);
@@ -220,14 +249,15 @@ namespace visita_booking_api.Services
                 Notes = existingOverride.Notes,
                 Reason = existingOverride.Reason,
                 CreatedAt = existingOverride.CreatedAt,
-                CreatedBy = existingOverride.CreatedBy
+                CreatedBy = existingOverride.CreatedBy,
             };
         }
 
         public async Task<bool> RemoveAvailabilityOverrideAsync(int roomId, DateTime date)
         {
-            var override_ = await _context.RoomAvailabilityOverrides
-                .FirstOrDefaultAsync(o => o.RoomId == roomId && o.Date == date.Date);
+            var override_ = await _context.RoomAvailabilityOverrides.FirstOrDefaultAsync(o =>
+                o.RoomId == roomId && o.Date == date.Date
+            );
 
             if (override_ == null)
                 return false;
@@ -251,15 +281,16 @@ namespace visita_booking_api.Services
             var basePrice = room.DefaultPrice;
 
             // Check for availability override with price override
-            var availabilityOverride = await _context.RoomAvailabilityOverrides
-                .FirstOrDefaultAsync(o => o.RoomId == roomId && o.Date == date.Date);
+            var availabilityOverride = await _context.RoomAvailabilityOverrides.FirstOrDefaultAsync(
+                o => o.RoomId == roomId && o.Date == date.Date
+            );
 
             if (availabilityOverride?.OverridePrice.HasValue == true)
                 return availabilityOverride.OverridePrice.Value;
 
             // Get applicable pricing rules
-            var pricingRules = await _context.RoomPricingRules
-                .Where(r => r.RoomId == roomId && r.IsActive)
+            var pricingRules = await _context
+                .RoomPricingRules.Where(r => r.RoomId == roomId && r.IsActive)
                 .OrderByDescending(r => r.Priority)
                 .ToListAsync();
 
@@ -273,8 +304,9 @@ namespace visita_booking_api.Services
             }
 
             // Check for holiday pricing
-            var holiday = await _context.HolidayCalendar
-                .FirstOrDefaultAsync(h => h.Date == date.Date && h.IsActive);
+            var holiday = await _context.HolidayCalendar.FirstOrDefaultAsync(h =>
+                h.Date == date.Date && h.IsActive
+            );
 
             if (holiday != null)
                 return basePrice * holiday.PriceMultiplier;
@@ -282,7 +314,11 @@ namespace visita_booking_api.Services
             return basePrice;
         }
 
-        public async Task<Dictionary<DateTime, decimal>> GetPricesForRangeAsync(int roomId, DateTime startDate, DateTime endDate)
+        public async Task<Dictionary<DateTime, decimal>> GetPricesForRangeAsync(
+            int roomId,
+            DateTime startDate,
+            DateTime endDate
+        )
         {
             var prices = new Dictionary<DateTime, decimal>();
 
@@ -294,7 +330,11 @@ namespace visita_booking_api.Services
             return prices;
         }
 
-        public async Task<decimal> CalculateStayTotalAsync(int roomId, DateTime checkIn, DateTime checkOut)
+        public async Task<decimal> CalculateStayTotalAsync(
+            int roomId,
+            DateTime checkIn,
+            DateTime checkOut
+        )
         {
             if (checkOut <= checkIn)
                 throw new ArgumentException("Check-out date must be after check-in date");
@@ -311,17 +351,19 @@ namespace visita_booking_api.Services
 
         // Helper methods
         private async Task<CalendarDayDTO> CreateCalendarDayDTOAsync(
-            int roomId, 
-            DateTime date, 
+            int roomId,
+            DateTime date,
             Dictionary<DateTime, RoomAvailabilityOverride> overrides,
             Dictionary<DateTime, HolidayCalendar> holidays,
             List<RoomPricingRule> pricingRules,
-            decimal basePrice)
+            decimal basePrice
+        )
         {
-            var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+            var isWeekend =
+                date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
             var isHoliday = holidays.ContainsKey(date.Date);
             var isPastDate = date.Date < DateTime.Today;
-            
+
             var isAvailable = true;
             var isBooked = false;
             var isBlocked = false;
@@ -336,7 +378,7 @@ namespace visita_booking_api.Services
                 if (override_.OverridePrice.HasValue)
                     price = override_.OverridePrice.Value;
                 notes = override_.Notes;
-                
+
                 if (!isAvailable)
                 {
                     isBlocked = true;
@@ -382,57 +424,77 @@ namespace visita_booking_api.Services
                 IsWeekend = isWeekend,
                 IsHoliday = isHoliday,
                 IsPastDate = isPastDate,
-                Status = status
+                Status = status,
             };
         }
 
-        private async Task<List<RoomPricingRule>> GetApplicablePricingRulesAsync(int roomId, DateTime startDate, DateTime endDate)
+        private async Task<List<RoomPricingRule>> GetApplicablePricingRulesAsync(
+            int roomId,
+            DateTime startDate,
+            DateTime endDate
+        )
         {
-            return await _context.RoomPricingRules
-                .Where(r => r.RoomId == roomId && r.IsActive)
-                .Where(r => r.RuleType == PricingRuleType.Default || 
-                           r.RuleType == PricingRuleType.Weekend ||
-                           (r.StartDate.HasValue && r.EndDate.HasValue && 
-                            r.StartDate.Value <= endDate && r.EndDate.Value >= startDate))
+            return await _context
+                .RoomPricingRules.Where(r => r.RoomId == roomId && r.IsActive)
+                .Where(r =>
+                    r.RuleType == PricingRuleType.Default
+                    || r.RuleType == PricingRuleType.Weekend
+                    || (
+                        r.StartDate.HasValue
+                        && r.EndDate.HasValue
+                        && r.StartDate.Value <= endDate
+                        && r.EndDate.Value >= startDate
+                    )
+                )
                 .OrderByDescending(r => r.Priority)
                 .ToListAsync();
         }
 
         // Pricing Rules Management
-        public async Task<List<RoomPricingRuleDTO>> GetPricingRulesAsync(int roomId, bool includeInactive = false)
+        public async Task<List<RoomPricingRuleDTO>> GetPricingRulesAsync(
+            int roomId,
+            bool includeInactive = false
+        )
         {
             var query = _context.RoomPricingRules.Where(r => r.RoomId == roomId);
-            
+
             if (!includeInactive)
                 query = query.Where(r => r.IsActive);
 
             var rules = await query.OrderBy(r => r.Priority).ToListAsync();
 
-            return rules.Select(r => new RoomPricingRuleDTO
-            {
-                Id = r.Id,
-                RoomId = r.RoomId,
-                RuleType = r.RuleType.ToString(),
-                Name = r.Name,
-                Description = r.Description,
-                DayOfWeek = r.DayOfWeek,
-                StartDate = r.StartDate,
-                EndDate = r.EndDate,
-                FixedPrice = r.FixedPrice,
-                IsActive = r.IsActive,
-                Priority = r.Priority,
-                MinimumNights = r.MinimumNights,
-                CreatedAt = r.CreatedAt,
-                UpdatedAt = r.UpdatedAt
-            }).ToList();
+            return rules
+                .Select(r => new RoomPricingRuleDTO
+                {
+                    Id = r.Id,
+                    RoomId = r.RoomId,
+                    RuleType = r.RuleType.ToString(),
+                    Name = r.Name,
+                    Description = r.Description,
+                    DayOfWeek = r.DayOfWeek,
+                    StartDate = r.StartDate,
+                    EndDate = r.EndDate,
+                    FixedPrice = r.FixedPrice,
+                    IsActive = r.IsActive,
+                    Priority = r.Priority,
+                    MinimumNights = r.MinimumNights,
+                    CreatedAt = r.CreatedAt,
+                    UpdatedAt = r.UpdatedAt,
+                })
+                .ToList();
         }
 
-        public async Task<RoomPricingRuleDTO> CreatePricingRuleAsync(int roomId, RoomPricingRuleCreateDTO ruleDto)
+        public async Task<RoomPricingRuleDTO> CreatePricingRuleAsync(
+            int roomId,
+            RoomPricingRuleCreateDTO ruleDto
+        )
         {
             // Validate the rule
             var validationErrors = await ValidatePricingRuleAsync(roomId, ruleDto);
             if (validationErrors.Any())
-                throw new ArgumentException($"Validation failed: {string.Join(", ", validationErrors)}");
+                throw new ArgumentException(
+                    $"Validation failed: {string.Join(", ", validationErrors)}"
+                );
 
             if (!Enum.TryParse<PricingRuleType>(ruleDto.RuleType, out var ruleType))
                 throw new ArgumentException("Invalid rule type");
@@ -449,7 +511,7 @@ namespace visita_booking_api.Services
                 FixedPrice = ruleDto.FixedPrice,
                 Priority = ruleDto.Priority,
                 MinimumNights = ruleDto.MinimumNights,
-                IsActive = true
+                IsActive = true,
             };
 
             _context.RoomPricingRules.Add(rule);
@@ -461,7 +523,10 @@ namespace visita_booking_api.Services
             return ConvertToRoomPricingRuleDTOAsync(rule);
         }
 
-        public async Task<RoomPricingRuleDTO?> UpdatePricingRuleAsync(int ruleId, RoomPricingRuleCreateDTO ruleDto)
+        public async Task<RoomPricingRuleDTO?> UpdatePricingRuleAsync(
+            int ruleId,
+            RoomPricingRuleCreateDTO ruleDto
+        )
         {
             var rule = await _context.RoomPricingRules.FindAsync(ruleId);
             if (rule == null)
@@ -470,7 +535,9 @@ namespace visita_booking_api.Services
             // Validate the rule
             var validationErrors = await ValidatePricingRuleAsync(rule.RoomId, ruleDto);
             if (validationErrors.Any())
-                throw new ArgumentException($"Validation failed: {string.Join(", ", validationErrors)}");
+                throw new ArgumentException(
+                    $"Validation failed: {string.Join(", ", validationErrors)}"
+                );
 
             if (!Enum.TryParse<PricingRuleType>(ruleDto.RuleType, out var ruleType))
                 throw new ArgumentException("Invalid rule type");
@@ -518,7 +585,7 @@ namespace visita_booking_api.Services
 
             rule.IsActive = !rule.IsActive;
             rule.UpdateTimestamp();
-            
+
             await _context.SaveChangesAsync();
 
             // Invalidate cache
@@ -528,7 +595,10 @@ namespace visita_booking_api.Services
         }
 
         // Bulk Operations
-        public async Task<int> BulkSetAvailabilityAsync(int roomId, BulkAvailabilityUpdateDTO bulkDto)
+        public async Task<int> BulkSetAvailabilityAsync(
+            int roomId,
+            BulkAvailabilityUpdateDTO bulkDto
+        )
         {
             var updatedCount = 0;
 
@@ -540,7 +610,7 @@ namespace visita_booking_api.Services
                     IsAvailable = bulkDto.IsAvailable,
                     OverridePrice = bulkDto.OverridePrice,
                     Notes = bulkDto.Notes,
-                    Reason = bulkDto.Reason
+                    Reason = bulkDto.Reason,
                 };
 
                 await SetAvailabilityOverrideAsync(roomId, overrideDto);
@@ -560,13 +630,20 @@ namespace visita_booking_api.Services
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to warmup ledger after bulk per-date availability update for room {RoomId}", roomId);
+                _logger.LogWarning(
+                    ex,
+                    "Failed to warmup ledger after bulk per-date availability update for room {RoomId}",
+                    roomId
+                );
             }
 
             return updatedCount;
         }
 
-        public async Task<int> BulkSetAvailabilityRangeAsync(int roomId, DateRangeAvailabilityUpdateDTO rangeDto)
+        public async Task<int> BulkSetAvailabilityRangeAsync(
+            int roomId,
+            DateRangeAvailabilityUpdateDTO rangeDto
+        )
         {
             if (!await ValidateDateRangeAsync(rangeDto.StartDate, rangeDto.EndDate))
                 throw new ArgumentException("Invalid date range");
@@ -585,7 +662,7 @@ namespace visita_booking_api.Services
                     IsAvailable = rangeDto.IsAvailable,
                     OverridePrice = rangeDto.OverridePrice,
                     Notes = rangeDto.Notes,
-                    Reason = rangeDto.Reason
+                    Reason = rangeDto.Reason,
                 };
 
                 await SetAvailabilityOverrideAsync(roomId, overrideDto);
@@ -603,16 +680,26 @@ namespace visita_booking_api.Services
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to warmup ledger after bulk availability update for room {RoomId}", roomId);
+                _logger.LogWarning(
+                    ex,
+                    "Failed to warmup ledger after bulk availability update for room {RoomId}",
+                    roomId
+                );
             }
 
             return updatedCount;
         }
 
-        public async Task<int> BulkClearOverridesAsync(int roomId, DateTime startDate, DateTime endDate)
+        public async Task<int> BulkClearOverridesAsync(
+            int roomId,
+            DateTime startDate,
+            DateTime endDate
+        )
         {
-            var overrides = await _context.RoomAvailabilityOverrides
-                .Where(o => o.RoomId == roomId && o.Date >= startDate && o.Date <= endDate)
+            var overrides = await _context
+                .RoomAvailabilityOverrides.Where(o =>
+                    o.RoomId == roomId && o.Date >= startDate && o.Date <= endDate
+                )
                 .ToListAsync();
 
             var count = overrides.Count;
@@ -626,16 +713,20 @@ namespace visita_booking_api.Services
         }
 
         // Search Integration
-        public async Task<List<int>> GetAvailableRoomIdsAsync(DateTime checkIn, DateTime checkOut, List<int>? roomIds = null)
+        public async Task<List<int>> GetAvailableRoomIdsAsync(
+            DateTime checkIn,
+            DateTime checkOut,
+            List<int>? roomIds = null
+        )
         {
             // Use database-level filtering for performance
             var blockedRoomIds = await GetBlockedRoomIdsForPeriodAsync(checkIn, checkOut, roomIds);
-            
+
             var query = _context.Rooms.Where(r => r.IsActive);
-            
+
             if (roomIds != null && roomIds.Any())
                 query = query.Where(r => roomIds.Contains(r.Id));
-            
+
             // Exclude blocked rooms at database level
             if (blockedRoomIds.Any())
                 query = query.Where(r => !blockedRoomIds.Contains(r.Id));
@@ -644,26 +735,27 @@ namespace visita_booking_api.Services
         }
 
         public async Task<PaginatedResponse<int>> GetAvailableRoomIdsAsync(
-            DateTime checkIn, 
-            DateTime checkOut, 
-            int page = 1, 
-            int pageSize = 50, 
-            List<int>? roomIds = null)
+            DateTime checkIn,
+            DateTime checkOut,
+            int page = 1,
+            int pageSize = 50,
+            List<int>? roomIds = null
+        )
         {
             // Get blocked rooms for the entire period in one query
             var blockedRoomIds = await GetBlockedRoomIdsForPeriodAsync(checkIn, checkOut, roomIds);
-            
+
             var query = _context.Rooms.Where(r => r.IsActive);
-            
+
             if (roomIds != null && roomIds.Any())
                 query = query.Where(r => roomIds.Contains(r.Id));
-            
+
             // Exclude blocked rooms at database level
             if (blockedRoomIds.Any())
                 query = query.Where(r => !blockedRoomIds.Contains(r.Id));
 
             var totalCount = await query.CountAsync();
-            
+
             var availableRoomIds = await query
                 .Select(r => r.Id)
                 .OrderBy(r => r)
@@ -678,27 +770,48 @@ namespace visita_booking_api.Services
         /// Get room IDs that are UNAVAILABLE for the specified date range (negative filtering approach)
         /// More efficient when most rooms are available
         /// </summary>
-        public async Task<List<int>> GetUnavailableRoomIdsAsync(DateTime checkIn, DateTime checkOut, List<int>? roomIds = null)
+        public async Task<List<int>> GetUnavailableRoomIdsAsync(
+            DateTime checkIn,
+            DateTime checkOut,
+            List<int>? roomIds = null
+        )
         {
             try
             {
                 // Direct query to get blocked room IDs - much more efficient for exclusion filtering
-                var blockedRoomIds = await GetBlockedRoomIdsForPeriodAsync(checkIn, checkOut, roomIds);
-                
-                _logger.LogDebug("GetUnavailableRoomIdsAsync: Found {BlockedCount} unavailable rooms for period {CheckIn} to {CheckOut}", 
-                    blockedRoomIds.Count, checkIn.ToString("yyyy-MM-dd"), checkOut.ToString("yyyy-MM-dd"));
-                
+                var blockedRoomIds = await GetBlockedRoomIdsForPeriodAsync(
+                    checkIn,
+                    checkOut,
+                    roomIds
+                );
+
+                _logger.LogDebug(
+                    "GetUnavailableRoomIdsAsync: Found {BlockedCount} unavailable rooms for period {CheckIn} to {CheckOut}",
+                    blockedRoomIds.Count,
+                    checkIn.ToString("yyyy-MM-dd"),
+                    checkOut.ToString("yyyy-MM-dd")
+                );
+
                 return blockedRoomIds;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting unavailable room IDs for period {CheckIn} to {CheckOut}", checkIn, checkOut);
+                _logger.LogError(
+                    ex,
+                    "Error getting unavailable room IDs for period {CheckIn} to {CheckOut}",
+                    checkIn,
+                    checkOut
+                );
                 // Return empty list on error to avoid excluding all rooms
                 return new List<int>();
             }
         }
 
-        private async Task<List<int>> GetBlockedRoomIdsForPeriodAsync(DateTime checkIn, DateTime checkOut, List<int>? roomIds = null)
+        private async Task<List<int>> GetBlockedRoomIdsForPeriodAsync(
+            DateTime checkIn,
+            DateTime checkOut,
+            List<int>? roomIds = null
+        )
         {
             // Inventory-aware blocked room computation
             // For each room, for each date in [checkIn, checkOut), compute EffectiveInventory and UnitsConsumed
@@ -711,9 +824,7 @@ namespace visita_booking_api.Services
             if (roomIds != null && roomIds.Any())
                 roomsQuery = roomsQuery.Where(r => roomIds.Contains(r.Id));
 
-            var rooms = await roomsQuery
-                .Select(r => new { r.Id, r.TotalUnits })
-                .ToListAsync();
+            var rooms = await roomsQuery.Select(r => new { r.Id, r.TotalUnits }).ToListAsync();
 
             if (!rooms.Any())
                 return blockedRoomIds;
@@ -721,41 +832,88 @@ namespace visita_booking_api.Services
             var roomIdSet = rooms.Select(r => r.Id).ToList();
 
             // Load overrides in range
-            var overrides = await _context.RoomAvailabilityOverrides
-                .Where(o => roomIdSet.Contains(o.RoomId) && o.Date >= checkIn && o.Date < checkOut)
+            var overrides = await _context
+                .RoomAvailabilityOverrides.Where(o =>
+                    roomIdSet.Contains(o.RoomId) && o.Date >= checkIn && o.Date < checkOut
+                )
                 .ToListAsync();
+            //
 
             var overridesByRoom = overrides
                 .GroupBy(o => o.RoomId)
                 .ToDictionary(g => g.Key, g => g.ToDictionary(o => o.Date.Date, o => o));
+            //
+            // ADD THIS DEBUG LOGGING HERE
+            _logger.LogWarning(
+                "=== BLOCKED DATES DEBUG for {CheckIn} to {CheckOut} ===",
+                checkIn.ToString("yyyy-MM-dd"),
+                checkOut.ToString("yyyy-MM-dd")
+            );
+            _logger.LogWarning("Total overrides loaded: {Count}", overrides.Count);
+            _logger.LogWarning("Room 68 overrides: {Count}", overrides.Count(o => o.RoomId == 68));
 
+            foreach (var ov in overrides.Where(o => o.RoomId == 68))
+            {
+                _logger.LogWarning(
+                    "Room 68 - Date: {Date}, IsAvailable: {IsAvailable}, AvailableCount: {Count}",
+                    ov.Date.ToString("yyyy-MM-dd"),
+                    ov.IsAvailable,
+                    ov.AvailableCount?.ToString() ?? "null"
+                );
+            }
+            _logger.LogWarning("=== END DEBUG ===");
             // Load confirmed bookings overlapping range
-            var bookings = await _context.Bookings
-                .Where(b => b.Status != BookingStatus.Cancelled
+            var bookings = await _context
+                .Bookings.Where(b =>
+                    b.Status != BookingStatus.Cancelled
                     && roomIdSet.Contains(b.RoomId)
                     && b.CheckInDate < checkOut
-                    && b.CheckOutDate > checkIn)
-                .Select(b => new { b.RoomId, b.CheckInDate, b.CheckOutDate, b.Quantity })
+                    && b.CheckOutDate > checkIn
+                )
+                .Select(b => new
+                {
+                    b.RoomId,
+                    b.CheckInDate,
+                    b.CheckOutDate,
+                    b.Quantity,
+                })
                 .ToListAsync();
 
             // Load active reservations overlapping range
             var now = DateTime.UtcNow;
-            var reservations = await _context.BookingReservations
-                .Where(r => r.Status == ReservationStatus.Active
+            var reservations = await _context
+                .BookingReservations.Where(r =>
+                    r.Status == ReservationStatus.Active
                     && r.ExpiresAt > now
                     && roomIdSet.Contains(r.RoomId)
                     && r.CheckInDate < checkOut
-                    && r.CheckOutDate > checkIn)
-                .Select(r => new { r.RoomId, r.CheckInDate, r.CheckOutDate, r.Quantity })
+                    && r.CheckOutDate > checkIn
+                )
+                .Select(r => new
+                {
+                    r.RoomId,
+                    r.CheckInDate,
+                    r.CheckOutDate,
+                    r.Quantity,
+                })
                 .ToListAsync();
 
             // Load active locks overlapping range
-            var locks = await _context.BookingAvailabilityLocks
-                .Where(l => l.IsActive && l.ExpiresAt > now
+            var locks = await _context
+                .BookingAvailabilityLocks.Where(l =>
+                    l.IsActive
+                    && l.ExpiresAt > now
                     && roomIdSet.Contains(l.RoomId)
                     && l.CheckInDate < checkOut
-                    && l.CheckOutDate > checkIn)
-                .Select(l => new { l.RoomId, l.CheckInDate, l.CheckOutDate, l.Quantity })
+                    && l.CheckOutDate > checkIn
+                )
+                .Select(l => new
+                {
+                    l.RoomId,
+                    l.CheckInDate,
+                    l.CheckOutDate,
+                    l.Quantity,
+                })
                 .ToListAsync();
 
             // Helper: iterate each room and compute per-date usage
@@ -778,7 +936,8 @@ namespace visita_booking_api.Services
                     var end = MinDate(b.CheckOutDate.Date, checkOut.Date);
                     for (var d = start; d < end; d = d.AddDays(1))
                     {
-                        if (consumed.ContainsKey(d)) consumed[d] += b.Quantity;
+                        if (consumed.ContainsKey(d))
+                            consumed[d] += b.Quantity;
                     }
                 }
 
@@ -790,7 +949,8 @@ namespace visita_booking_api.Services
                     var end = MinDate(r.CheckOutDate.Date, checkOut.Date);
                     for (var d = start; d < end; d = d.AddDays(1))
                     {
-                        if (consumed.ContainsKey(d)) consumed[d] += r.Quantity;
+                        if (consumed.ContainsKey(d))
+                            consumed[d] += r.Quantity;
                     }
                 }
 
@@ -802,12 +962,15 @@ namespace visita_booking_api.Services
                     var end = MinDate(l.CheckOutDate.Date, checkOut.Date);
                     for (var d = start; d < end; d = d.AddDays(1))
                     {
-                        if (consumed.ContainsKey(d)) consumed[d] += l.Quantity;
+                        if (consumed.ContainsKey(d))
+                            consumed[d] += l.Quantity;
                     }
                 }
 
                 // For each date check EffectiveInventory and compare
-                var roomOverrides = overridesByRoom.ContainsKey(room.Id) ? overridesByRoom[room.Id] : new Dictionary<DateTime, Models.Entities.RoomAvailabilityOverride>();
+                var roomOverrides = overridesByRoom.ContainsKey(room.Id)
+                    ? overridesByRoom[room.Id]
+                    : new Dictionary<DateTime, Models.Entities.RoomAvailabilityOverride>();
 
                 foreach (var d in days)
                 {
@@ -835,9 +998,15 @@ namespace visita_booking_api.Services
                     var used = consumed[d];
 
                     // Calculate breakdown counts for debugging
-                    var bookingsCount = roomBookings.Where(b => d >= b.CheckInDate.Date && d < b.CheckOutDate.Date).Sum(b => b.Quantity);
-                    var reservationsCount = roomReservations.Where(r => d >= r.CheckInDate.Date && d < r.CheckOutDate.Date).Sum(r => r.Quantity);
-                    var locksCount = roomLocks.Where(l => d >= l.CheckInDate.Date && d < l.CheckOutDate.Date).Sum(l => l.Quantity);
+                    var bookingsCount = roomBookings
+                        .Where(b => d >= b.CheckInDate.Date && d < b.CheckOutDate.Date)
+                        .Sum(b => b.Quantity);
+                    var reservationsCount = roomReservations
+                        .Where(r => d >= r.CheckInDate.Date && d < r.CheckOutDate.Date)
+                        .Sum(r => r.Quantity);
+                    var locksCount = roomLocks
+                        .Where(l => d >= l.CheckInDate.Date && d < l.CheckOutDate.Date)
+                        .Sum(l => l.Quantity);
 
                     // (debug logging removed here; search service will surface availability maps)
 
@@ -857,45 +1026,60 @@ namespace visita_booking_api.Services
 
         // Utility helpers for date bounds
         private static DateTime MaxDate(DateTime a, DateTime b) => a > b ? a : b;
+
         private static DateTime MinDate(DateTime a, DateTime b) => a < b ? a : b;
 
-        public async Task<Dictionary<int, decimal>> GetRoomPricesAsync(List<int> roomIds, DateTime checkIn, DateTime checkOut)
+        public async Task<Dictionary<int, decimal>> GetRoomPricesAsync(
+            List<int> roomIds,
+            DateTime checkIn,
+            DateTime checkOut
+        )
         {
-            if (!roomIds.Any()) return new Dictionary<int, decimal>();
+            if (!roomIds.Any())
+                return new Dictionary<int, decimal>();
 
             // Optimize with bulk data fetching
             var roomPrices = new Dictionary<int, decimal>();
 
             // Get all room default prices in one query
-            var roomDefaultPrices = await _context.Rooms
-                .Where(r => roomIds.Contains(r.Id))
+            var roomDefaultPrices = await _context
+                .Rooms.Where(r => roomIds.Contains(r.Id))
                 .ToDictionaryAsync(r => r.Id, r => r.DefaultPrice);
 
             // Get all availability overrides for all rooms in one query
-            var overrides = await _context.RoomAvailabilityOverrides
-                .Where(o => roomIds.Contains(o.RoomId) && o.Date >= checkIn && o.Date < checkOut)
+            var overrides = await _context
+                .RoomAvailabilityOverrides.Where(o =>
+                    roomIds.Contains(o.RoomId) && o.Date >= checkIn && o.Date < checkOut
+                )
                 .ToListAsync();
 
             // Get all pricing rules for all rooms in one query
-            var pricingRules = await _context.RoomPricingRules
-                .Where(r => roomIds.Contains(r.RoomId) && r.IsActive)
+            var pricingRules = await _context
+                .RoomPricingRules.Where(r => roomIds.Contains(r.RoomId) && r.IsActive)
                 .ToListAsync();
 
             // Get all holidays for the date range in one query
-            var holidays = await _context.HolidayCalendar
-                .Where(h => h.Date >= checkIn && h.Date < checkOut && h.IsActive)
+            var holidays = await _context
+                .HolidayCalendar.Where(h => h.Date >= checkIn && h.Date < checkOut && h.IsActive)
                 .ToDictionaryAsync(h => h.Date.Date);
 
             // Group data by room for efficient processing
-            var roomOverrides = overrides.GroupBy(o => o.RoomId).ToDictionary(g => g.Key, g => g.ToDictionary(o => o.Date.Date));
-            var roomRules = pricingRules.GroupBy(r => r.RoomId).ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.Priority).ToList());
+            var roomOverrides = overrides
+                .GroupBy(o => o.RoomId)
+                .ToDictionary(g => g.Key, g => g.ToDictionary(o => o.Date.Date));
+            var roomRules = pricingRules
+                .GroupBy(r => r.RoomId)
+                .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.Priority).ToList());
 
             // Calculate prices for each room
             foreach (var roomId in roomIds)
             {
                 if (!roomDefaultPrices.ContainsKey(roomId))
                 {
-                    _logger.LogWarning("Room {RoomId} not found, skipping price calculation", roomId);
+                    _logger.LogWarning(
+                        "Room {RoomId} not found, skipping price calculation",
+                        roomId
+                    );
                     continue;
                 }
 
@@ -903,8 +1087,14 @@ namespace visita_booking_api.Services
                 {
                     var total = 0m;
                     var basePrice = roomDefaultPrices[roomId];
-                    var roomOverrideDict = roomOverrides.GetValueOrDefault(roomId, new Dictionary<DateTime, RoomAvailabilityOverride>());
-                    var roomRuleList = roomRules.GetValueOrDefault(roomId, new List<RoomPricingRule>());
+                    var roomOverrideDict = roomOverrides.GetValueOrDefault(
+                        roomId,
+                        new Dictionary<DateTime, RoomAvailabilityOverride>()
+                    );
+                    var roomRuleList = roomRules.GetValueOrDefault(
+                        roomId,
+                        new List<RoomPricingRule>()
+                    );
 
                     // Calculate price for each night
                     for (var date = checkIn; date < checkOut; date = date.AddDays(1))
@@ -912,8 +1102,10 @@ namespace visita_booking_api.Services
                         var dayPrice = basePrice;
 
                         // Check for availability override with price override
-                        if (roomOverrideDict.TryGetValue(date.Date, out var availabilityOverride) && 
-                            availabilityOverride.OverridePrice.HasValue)
+                        if (
+                            roomOverrideDict.TryGetValue(date.Date, out var availabilityOverride)
+                            && availabilityOverride.OverridePrice.HasValue
+                        )
                         {
                             dayPrice = availabilityOverride.OverridePrice.Value;
                         }
@@ -954,49 +1146,83 @@ namespace visita_booking_api.Services
         /// Returns the minimum available units for each room across the date range [checkIn, checkOut).
         /// This is optimized for bulk checks from search code.
         /// </summary>
-        public async Task<Dictionary<int, int>> GetMinAvailableUnitsForRoomsAsync(List<int> roomIds, DateTime checkIn, DateTime checkOut)
+        public async Task<Dictionary<int, int>> GetMinAvailableUnitsForRoomsAsync(
+            List<int> roomIds,
+            DateTime checkIn,
+            DateTime checkOut
+        )
         {
             var result = new Dictionary<int, int>();
-            if (!roomIds.Any()) return result;
+            if (!roomIds.Any())
+                return result;
 
             // Load room totals
-            var roomTotals = await _context.Rooms
-                .Where(r => roomIds.Contains(r.Id))
+            var roomTotals = await _context
+                .Rooms.Where(r => roomIds.Contains(r.Id))
                 .Select(r => new { r.Id, r.TotalUnits })
                 .ToDictionaryAsync(r => r.Id, r => r.TotalUnits);
 
             // Load overrides
-            var overrides = await _context.RoomAvailabilityOverrides
-                .Where(o => roomIds.Contains(o.RoomId) && o.Date >= checkIn && o.Date < checkOut)
+            var overrides = await _context
+                .RoomAvailabilityOverrides.Where(o =>
+                    roomIds.Contains(o.RoomId) && o.Date >= checkIn && o.Date < checkOut
+                )
                 .ToListAsync();
 
-            var overridesByRoom = overrides.GroupBy(o => o.RoomId).ToDictionary(g => g.Key, g => g.ToDictionary(o => o.Date.Date, o => o));
+            var overridesByRoom = overrides
+                .GroupBy(o => o.RoomId)
+                .ToDictionary(g => g.Key, g => g.ToDictionary(o => o.Date.Date, o => o));
 
             // Load bookings/reservations/locks similar to blocked method but aggregated per date
-            var bookings = await _context.Bookings
-                .Where(b => b.Status != BookingStatus.Cancelled
+            var bookings = await _context
+                .Bookings.Where(b =>
+                    b.Status != BookingStatus.Cancelled
                     && roomIds.Contains(b.RoomId)
                     && b.CheckInDate < checkOut
-                    && b.CheckOutDate > checkIn)
-                .Select(b => new { b.RoomId, b.CheckInDate, b.CheckOutDate, b.Quantity })
+                    && b.CheckOutDate > checkIn
+                )
+                .Select(b => new
+                {
+                    b.RoomId,
+                    b.CheckInDate,
+                    b.CheckOutDate,
+                    b.Quantity,
+                })
                 .ToListAsync();
 
             var now = DateTime.UtcNow;
-            var reservations = await _context.BookingReservations
-                .Where(r => r.Status == ReservationStatus.Active
+            var reservations = await _context
+                .BookingReservations.Where(r =>
+                    r.Status == ReservationStatus.Active
                     && r.ExpiresAt > now
                     && roomIds.Contains(r.RoomId)
                     && r.CheckInDate < checkOut
-                    && r.CheckOutDate > checkIn)
-                .Select(r => new { r.RoomId, r.CheckInDate, r.CheckOutDate, r.Quantity })
+                    && r.CheckOutDate > checkIn
+                )
+                .Select(r => new
+                {
+                    r.RoomId,
+                    r.CheckInDate,
+                    r.CheckOutDate,
+                    r.Quantity,
+                })
                 .ToListAsync();
 
-            var locks = await _context.BookingAvailabilityLocks
-                .Where(l => l.IsActive && l.ExpiresAt > now
+            var locks = await _context
+                .BookingAvailabilityLocks.Where(l =>
+                    l.IsActive
+                    && l.ExpiresAt > now
                     && roomIds.Contains(l.RoomId)
                     && l.CheckInDate < checkOut
-                    && l.CheckOutDate > checkIn)
-                .Select(l => new { l.RoomId, l.CheckInDate, l.CheckOutDate, l.Quantity })
+                    && l.CheckOutDate > checkIn
+                )
+                .Select(l => new
+                {
+                    l.RoomId,
+                    l.CheckInDate,
+                    l.CheckOutDate,
+                    l.Quantity,
+                })
                 .ToListAsync();
 
             // For each room compute min available units
@@ -1006,7 +1232,8 @@ namespace visita_booking_api.Services
 
                 // Build per-date consumed map
                 var days = new List<DateTime>();
-                for (var d = checkIn.Date; d < checkOut.Date; d = d.AddDays(1)) days.Add(d);
+                for (var d = checkIn.Date; d < checkOut.Date; d = d.AddDays(1))
+                    days.Add(d);
 
                 var consumed = days.ToDictionary(d => d, d => 0);
 
@@ -1014,25 +1241,33 @@ namespace visita_booking_api.Services
                 {
                     var start = MaxDate(b.CheckInDate.Date, checkIn.Date);
                     var end = MinDate(b.CheckOutDate.Date, checkOut.Date);
-                    for (var d = start; d < end; d = d.AddDays(1)) if (consumed.ContainsKey(d)) consumed[d] += b.Quantity;
+                    for (var d = start; d < end; d = d.AddDays(1))
+                        if (consumed.ContainsKey(d))
+                            consumed[d] += b.Quantity;
                 }
 
                 foreach (var r in reservations.Where(r => r.RoomId == roomId))
                 {
                     var start = MaxDate(r.CheckInDate.Date, checkIn.Date);
                     var end = MinDate(r.CheckOutDate.Date, checkOut.Date);
-                    for (var d = start; d < end; d = d.AddDays(1)) if (consumed.ContainsKey(d)) consumed[d] += r.Quantity;
+                    for (var d = start; d < end; d = d.AddDays(1))
+                        if (consumed.ContainsKey(d))
+                            consumed[d] += r.Quantity;
                 }
 
                 foreach (var l in locks.Where(l => l.RoomId == roomId))
                 {
                     var start = MaxDate(l.CheckInDate.Date, checkIn.Date);
                     var end = MinDate(l.CheckOutDate.Date, checkOut.Date);
-                    for (var d = start; d < end; d = d.AddDays(1)) if (consumed.ContainsKey(d)) consumed[d] += l.Quantity;
+                    for (var d = start; d < end; d = d.AddDays(1))
+                        if (consumed.ContainsKey(d))
+                            consumed[d] += l.Quantity;
                 }
 
                 // For each date compute effective inventory and available units
-                var roomOverrides = overridesByRoom.ContainsKey(roomId) ? overridesByRoom[roomId] : new Dictionary<DateTime, Models.Entities.RoomAvailabilityOverride>();
+                var roomOverrides = overridesByRoom.ContainsKey(roomId)
+                    ? overridesByRoom[roomId]
+                    : new Dictionary<DateTime, Models.Entities.RoomAvailabilityOverride>();
                 var minAvailable = int.MaxValue;
 
                 foreach (var d in days)
@@ -1040,17 +1275,23 @@ namespace visita_booking_api.Services
                     int effectiveInventory;
                     if (roomOverrides.TryGetValue(d, out var ov))
                     {
-                        if (ov.AvailableCount.HasValue) effectiveInventory = ov.AvailableCount.Value;
-                        else if (!ov.IsAvailable) effectiveInventory = 0;
-                        else effectiveInventory = total;
+                        if (ov.AvailableCount.HasValue)
+                            effectiveInventory = ov.AvailableCount.Value;
+                        else if (!ov.IsAvailable)
+                            effectiveInventory = 0;
+                        else
+                            effectiveInventory = total;
                     }
-                    else effectiveInventory = total;
+                    else
+                        effectiveInventory = total;
 
                     var available = effectiveInventory - consumed[d];
-                    if (available < minAvailable) minAvailable = available;
+                    if (available < minAvailable)
+                        minAvailable = available;
                 }
 
-                if (minAvailable == int.MaxValue) minAvailable = total; // no days -> full
+                if (minAvailable == int.MaxValue)
+                    minAvailable = total; // no days -> full
                 result[roomId] = Math.Max(0, minAvailable);
             }
 
@@ -1058,22 +1299,33 @@ namespace visita_booking_api.Services
         }
 
         // Holiday Management
-        public async Task<List<HolidayCalendar>> GetHolidaysAsync(DateTime startDate, DateTime endDate, string country = "US")
+        public async Task<List<HolidayCalendar>> GetHolidaysAsync(
+            DateTime startDate,
+            DateTime endDate,
+            string country = "US"
+        )
         {
-            return await _context.HolidayCalendar
-                .Where(h => h.Date >= startDate && h.Date <= endDate && h.Country == country && h.IsActive)
+            return await _context
+                .HolidayCalendar.Where(h =>
+                    h.Date >= startDate && h.Date <= endDate && h.Country == country && h.IsActive
+                )
                 .OrderBy(h => h.Date)
                 .ToListAsync();
         }
 
         public async Task<bool> IsHolidayAsync(DateTime date, string country = "US")
         {
-            return await _context.HolidayCalendar
-                .AnyAsync(h => h.Date == date.Date && h.Country == country && h.IsActive);
+            return await _context.HolidayCalendar.AnyAsync(h =>
+                h.Date == date.Date && h.Country == country && h.IsActive
+            );
         }
 
         // Statistics and Analytics
-        public async Task<Dictionary<string, object>> GetCalendarStatsAsync(int roomId, int year, int month)
+        public async Task<Dictionary<string, object>> GetCalendarStatsAsync(
+            int roomId,
+            int year,
+            int month
+        )
         {
             var startDate = new DateTime(year, month, 1);
             var endDate = startDate.AddMonths(1).AddDays(-1);
@@ -1090,23 +1342,33 @@ namespace visita_booking_api.Services
                 ["MaxPrice"] = calendar.MaxPrice ?? 0,
                 ["AveragePrice"] = await GetAverageRateAsync(roomId, startDate, endDate),
                 ["TotalRevenue"] = calendar.Days.Where(d => d.IsBooked).Sum(d => d.Price ?? 0),
-                ["PotentialRevenue"] = calendar.Days.Where(d => d.IsAvailable).Sum(d => d.Price ?? 0)
+                ["PotentialRevenue"] = calendar
+                    .Days.Where(d => d.IsAvailable)
+                    .Sum(d => d.Price ?? 0),
             };
         }
 
-        public async Task<decimal> GetAverageRateAsync(int roomId, DateTime startDate, DateTime endDate)
+        public async Task<decimal> GetAverageRateAsync(
+            int roomId,
+            DateTime startDate,
+            DateTime endDate
+        )
         {
             var prices = await GetPricesForRangeAsync(roomId, startDate, endDate);
             return prices.Values.Any() ? prices.Values.Average() : 0;
         }
 
-        public async Task<double> GetOccupancyRateAsync(int roomId, DateTime startDate, DateTime endDate)
+        public async Task<double> GetOccupancyRateAsync(
+            int roomId,
+            DateTime startDate,
+            DateTime endDate
+        )
         {
             var availability = await CheckAvailabilityAsync(roomId, startDate, endDate);
             var totalDays = availability.Count;
             var availableDays = availability.Count(a => a.IsAvailable);
             var bookedDays = totalDays - availableDays; // Simplified - in reality you'd check actual bookings
-            
+
             return totalDays > 0 ? (double)bookedDays / totalDays * 100 : 0;
         }
 
@@ -1135,27 +1397,45 @@ namespace visita_booking_api.Services
             if (startDate >= endDate)
                 return false;
 
-            var maxAdvanceBookingDays = _configuration.GetValue<int>("RoomManagement:Calendar:MaxAdvanceBookingDays", 365);
+            var maxAdvanceBookingDays = _configuration.GetValue<int>(
+                "RoomManagement:Calendar:MaxAdvanceBookingDays",
+                365
+            );
             var maxFutureDate = DateTime.Today.AddDays(maxAdvanceBookingDays);
 
             if (endDate > maxFutureDate)
                 return false;
 
-            var minAdvanceBookingDays = _configuration.GetValue<int>("RoomManagement:Calendar:MinAdvanceBookingDays", 0);
+            var minAdvanceBookingDays = _configuration.GetValue<int>(
+                "RoomManagement:Calendar:MinAdvanceBookingDays",
+                0
+            );
             var minDate = DateTime.Today.AddDays(minAdvanceBookingDays);
 
             return startDate >= minDate;
         }
 
-        public async Task<bool> ValidateMinimumStayAsync(int roomId, DateTime checkIn, DateTime checkOut)
+        public async Task<bool> ValidateMinimumStayAsync(
+            int roomId,
+            DateTime checkIn,
+            DateTime checkOut
+        )
         {
             var nights = (checkOut - checkIn).Days;
 
-            var applicableRules = await _context.RoomPricingRules
-                .Where(r => r.RoomId == roomId && r.IsActive && r.MinimumNights.HasValue)
-                .Where(r => r.RuleType == PricingRuleType.Default || 
-                           (r.StartDate.HasValue && r.EndDate.HasValue &&
-                            r.StartDate.Value <= checkOut && r.EndDate.Value >= checkIn))
+            var applicableRules = await _context
+                .RoomPricingRules.Where(r =>
+                    r.RoomId == roomId && r.IsActive && r.MinimumNights.HasValue
+                )
+                .Where(r =>
+                    r.RuleType == PricingRuleType.Default
+                    || (
+                        r.StartDate.HasValue
+                        && r.EndDate.HasValue
+                        && r.StartDate.Value <= checkOut
+                        && r.EndDate.Value >= checkIn
+                    )
+                )
                 .OrderByDescending(r => r.Priority)
                 .ToListAsync();
 
@@ -1168,7 +1448,10 @@ namespace visita_booking_api.Services
             return true;
         }
 
-        public async Task<List<string>> ValidatePricingRuleAsync(int roomId, RoomPricingRuleCreateDTO ruleDto)
+        public async Task<List<string>> ValidatePricingRuleAsync(
+            int roomId,
+            RoomPricingRuleCreateDTO ruleDto
+        )
         {
             var errors = new List<string>();
 
@@ -1221,7 +1504,7 @@ namespace visita_booking_api.Services
                 Priority = rule.Priority,
                 MinimumNights = rule.MinimumNights,
                 CreatedAt = rule.CreatedAt,
-                UpdatedAt = rule.UpdatedAt
+                UpdatedAt = rule.UpdatedAt,
             };
         }
     }

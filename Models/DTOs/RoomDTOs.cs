@@ -34,6 +34,7 @@ namespace visita_booking_api.Models.DTOs
         public int PhotoCount { get; set; }
         public int AmenityCount { get; set; }
         public List<string> MainAmenities { get; set; } = new();
+        public List<AmenityDTO> Amenities { get; set; } = new();
         public AccommodationSummaryDto? Accommodation { get; set; }
     }
 

@@ -1,11 +1,11 @@
+using System.Text.Json;
+using System.Transactions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using System.Transactions;
-using System.Text.Json;
-using VisitaBookingApi.Data;
 using visita_booking_api.Models.DTOs;
 using visita_booking_api.Models.Entities;
 using visita_booking_api.Services.Interfaces;
+using VisitaBookingApi.Data;
 using VisitaBookingApi.Services.Interfaces;
 
 namespace visita_booking_api.Services.Implementation
@@ -20,7 +20,7 @@ namespace visita_booking_api.Services.Implementation
         private readonly ILogger<BookingService> _logger;
         private readonly IDistributedLockService _distributedLock;
         private readonly ITimezoneService _timezoneService;
-    private readonly visita_booking_api.Services.Interfaces.IEmailService _emailService;
+        private readonly visita_booking_api.Services.Interfaces.IEmailService _emailService;
 
         public BookingService(
             ApplicationDbContext context,
@@ -31,7 +31,8 @@ namespace visita_booking_api.Services.Implementation
             ILogger<BookingService> logger,
             IDistributedLockService distributedLock,
             ITimezoneService timezoneService,
-            visita_booking_api.Services.Interfaces.IEmailService emailService)
+            visita_booking_api.Services.Interfaces.IEmailService emailService
+        )
         {
             _context = context;
             _xenditService = xenditService;
@@ -44,7 +45,9 @@ namespace visita_booking_api.Services.Implementation
             _emailService = emailService;
         }
 
-        public async Task<BookingAvailabilityResponseDto> CheckAvailabilityAsync(BookingAvailabilityRequestDto request)
+        public async Task<BookingAvailabilityResponseDto> CheckAvailabilityAsync(
+            BookingAvailabilityRequestDto request
+        )
         {
             try
             {
@@ -54,7 +57,7 @@ namespace visita_booking_api.Services.Implementation
                     return new BookingAvailabilityResponseDto
                     {
                         IsAvailable = false,
-                        Message = "Check-in date cannot be in the past"
+                        Message = "Check-in date cannot be in the past",
                     };
                 }
 
@@ -63,13 +66,13 @@ namespace visita_booking_api.Services.Implementation
                     return new BookingAvailabilityResponseDto
                     {
                         IsAvailable = false,
-                        Message = "Check-out date must be after check-in date"
+                        Message = "Check-out date must be after check-in date",
                     };
                 }
 
                 // Get room details
-                var room = await _context.Rooms
-                    .Include(r => r.Accommodation)
+                var room = await _context
+                    .Rooms.Include(r => r.Accommodation)
                     .FirstOrDefaultAsync(r => r.Id == request.RoomId && r.IsActive);
 
                 if (room == null)
@@ -77,7 +80,7 @@ namespace visita_booking_api.Services.Implementation
                     return new BookingAvailabilityResponseDto
                     {
                         IsAvailable = false,
-                        Message = "Room not found or not available"
+                        Message = "Room not found or not available",
                     };
                 }
 
@@ -87,71 +90,93 @@ namespace visita_booking_api.Services.Implementation
                     return new BookingAvailabilityResponseDto
                     {
                         IsAvailable = false,
-                        Message = $"Room capacity exceeded. Maximum guests: {room.MaxGuests}"
+                        Message = $"Room capacity exceeded. Maximum guests: {room.MaxGuests}",
                     };
                 }
 
                 // Check room availability
-                var isAvailable = await IsRoomAvailableAsync(request.RoomId, request.CheckInDate, request.CheckOutDate);
+                var isAvailable = await IsRoomAvailableAsync(
+                    request.RoomId,
+                    request.CheckInDate,
+                    request.CheckOutDate
+                );
                 if (!isAvailable.IsAvailable)
                 {
                     return new BookingAvailabilityResponseDto
                     {
                         IsAvailable = false,
                         Message = isAvailable.Message,
-                        UnavailableDates = isAvailable.ConflictingDates
+                        UnavailableDates = isAvailable.ConflictingDates,
                     };
                 }
 
                 // Calculate pricing
-                var pricing = await CalculatePricingAsync(request.RoomId, request.CheckInDate, request.CheckOutDate, request.NumberOfGuests);
+                var pricing = await CalculatePricingAsync(
+                    request.RoomId,
+                    request.CheckInDate,
+                    request.CheckOutDate,
+                    request.NumberOfGuests
+                );
 
                 return new BookingAvailabilityResponseDto
                 {
                     IsAvailable = true,
                     Message = "Room is available for the selected dates",
                     EstimatedPrice = pricing.TotalAmount,
-                    PricingDetails = pricing
+                    PricingDetails = pricing,
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error checking availability for room {RoomId} from {CheckIn} to {CheckOut}",
-                    request.RoomId, request.CheckInDate, request.CheckOutDate);
+                _logger.LogError(
+                    ex,
+                    "Error checking availability for room {RoomId} from {CheckIn} to {CheckOut}",
+                    request.RoomId,
+                    request.CheckInDate,
+                    request.CheckOutDate
+                );
 
                 return new BookingAvailabilityResponseDto
                 {
                     IsAvailable = false,
-                    Message = "Error checking availability. Please try again."
+                    Message = "Error checking availability. Please try again.",
                 };
             }
         }
 
-        public async Task<BookingResponseDto> CreateBookingAsync(CreateBookingRequestDto request, int userId)
+        public async Task<BookingResponseDto> CreateBookingAsync(
+            CreateBookingRequestDto request,
+            int userId
+        )
         {
             // Multi-Date Distributed Locking - prevents concurrent booking of overlapping date ranges
             var lockToken = await _distributedLock.AcquireBookingLockAsync(
-                request.RoomId, 
-                request.CheckInDate, 
-                request.CheckOutDate, 
-                TimeSpan.FromMinutes(2));
+                request.RoomId,
+                request.CheckInDate,
+                request.CheckOutDate,
+                TimeSpan.FromMinutes(2)
+            );
 
             if (lockToken == null)
             {
-                throw new InvalidOperationException("Another user is currently booking this room for overlapping dates. Please try again in a few moments.");
+                throw new InvalidOperationException(
+                    "Another user is currently booking this room for overlapping dates. Please try again in a few moments."
+                );
             }
 
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 // Validate availability with the distributed locks held for all dates
-                var availability = await CheckAvailabilityAsync(new BookingAvailabilityRequestDto
-                {
-                    RoomId = request.RoomId,
-                    CheckInDate = request.CheckInDate,
-                    CheckOutDate = request.CheckOutDate,
-                    NumberOfGuests = request.NumberOfGuests
-                });
+                var availability = await CheckAvailabilityAsync(
+                    new BookingAvailabilityRequestDto
+                    {
+                        RoomId = request.RoomId,
+                        CheckInDate = request.CheckInDate,
+                        CheckOutDate = request.CheckOutDate,
+                        NumberOfGuests = request.NumberOfGuests,
+                    }
+                );
 
                 if (!availability.IsAvailable)
                 {
@@ -207,7 +232,7 @@ namespace visita_booking_api.Services.Implementation
                     GuestEmail = request.GuestEmail,
                     GuestPhone = request.GuestPhone,
                     SpecialRequests = request.SpecialRequests,
-                    CreatedBy = userId.ToString()
+                    CreatedBy = userId.ToString(),
                 };
 
                 _context.Bookings.Add(booking);
@@ -217,7 +242,9 @@ namespace visita_booking_api.Services.Implementation
                 var reservationReference = $"RES-{bookingReference}";
                 // Compute expiry in UTC based on local timezone now
 
-                var expiryUtc = DateTime.UtcNow.AddMinutes(request.ReservationTimeoutMinutes ?? _config.DefaultReservationTimeoutMinutes);
+                var expiryUtc = DateTime.UtcNow.AddMinutes(
+                    request.ReservationTimeoutMinutes ?? _config.DefaultReservationTimeoutMinutes
+                );
                 var reservation = new BookingReservation
                 {
                     ReservationReference = reservationReference,
@@ -229,14 +256,17 @@ namespace visita_booking_api.Services.Implementation
                     NumberOfGuests = request.NumberOfGuests,
                     TotalAmount = pricing.TotalAmount,
                     Status = ReservationStatus.Active,
-                    ExpiresAt = expiryUtc
+                    ExpiresAt = expiryUtc,
                 };
 
                 _context.BookingReservations.Add(reservation);
                 await _context.SaveChangesAsync();
 
                 // Create Xendit invoice with exact same expiry as reservation
-                var invoiceResult = await _xenditService.CreateInvoiceAsync(booking, reservation.ExpiresAt);
+                var invoiceResult = await _xenditService.CreateInvoiceAsync(
+                    booking,
+                    reservation.ExpiresAt
+                );
 
                 Console.WriteLine("Invoice REsult: " + invoiceResult.PaymentUrl);
 
@@ -248,14 +278,21 @@ namespace visita_booking_api.Services.Implementation
                 }
                 else
                 {
-                    _logger.LogWarning("Failed to create Xendit invoice for booking {BookingId}: {Error}",
-                        booking.Id, invoiceResult.ErrorMessage);
+                    _logger.LogWarning(
+                        "Failed to create Xendit invoice for booking {BookingId}: {Error}",
+                        booking.Id,
+                        invoiceResult.ErrorMessage
+                    );
                 }
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                _logger.LogInformation("Created booking {BookingReference} for user {UserId}", bookingReference, userId);
+                _logger.LogInformation(
+                    "Created booking {BookingReference} for user {UserId}",
+                    bookingReference,
+                    userId
+                );
 
                 return await MapToBookingResponseAsync(booking);
             }
@@ -270,31 +307,42 @@ namespace visita_booking_api.Services.Implementation
                 // Always release all distributed locks for the booked dates
                 if (lockToken != null)
                 {
-                    await _distributedLock.ReleaseBookingLockAsync(request.RoomId, request.CheckInDate, request.CheckOutDate, lockToken);
+                    await _distributedLock.ReleaseBookingLockAsync(
+                        request.RoomId,
+                        request.CheckInDate,
+                        request.CheckOutDate,
+                        lockToken
+                    );
                 }
             }
         }
 
-        public async Task<BookingResponseDto> ConfirmBookingAsync(int bookingId, string paymentReference)
+        public async Task<BookingResponseDto> ConfirmBookingAsync(
+            int bookingId,
+            string paymentReference
+        )
         {
             // If a transaction already exists on the DbContext (caller started one), join it.
             // Otherwise, create a new transaction for this operation.
             var currentTransaction = _context.Database.CurrentTransaction;
-            var createdTransaction = currentTransaction == null ? await _context.Database.BeginTransactionAsync() : null;
+            var createdTransaction =
+                currentTransaction == null ? await _context.Database.BeginTransactionAsync() : null;
             try
             {
-                var booking = await _context.Bookings
-                    .Include(b => b.Reservation)
+                var booking = await _context
+                    .Bookings.Include(b => b.Reservation)
                     .Include(b => b.Payments)
                     .Include(b => b.Room)
-                        .ThenInclude(r => r.Accommodation)
+                    .ThenInclude(r => r.Accommodation)
                     .FirstOrDefaultAsync(b => b.Id == bookingId);
 
                 if (booking == null)
                     throw new ArgumentException("Booking not found");
 
                 if (booking.Status != BookingStatus.Reserved)
-                    throw new InvalidOperationException($"Cannot confirm booking with status: {booking.Status}");
+                    throw new InvalidOperationException(
+                        $"Cannot confirm booking with status: {booking.Status}"
+                    );
 
                 // Update booking status
                 booking.Status = BookingStatus.Confirmed;
@@ -319,7 +367,10 @@ namespace visita_booking_api.Services.Implementation
                     await createdTransaction.CommitAsync();
                 }
 
-                _logger.LogInformation("Confirmed booking {BookingReference}", booking.BookingReference);
+                _logger.LogInformation(
+                    "Confirmed booking {BookingReference}",
+                    booking.BookingReference
+                );
 
                 // Warmup ledger for the affected room for the next 6 months so ledger-backed searches pick up the change.
                 // Only perform warmup if this method created the transaction (caller is not managing transactions)
@@ -336,17 +387,29 @@ namespace visita_booking_api.Services.Implementation
                 }
                 catch (Exception lex)
                 {
-                    _logger.LogWarning(lex, "Failed to warmup ledger after confirming booking {BookingRef}", booking.BookingReference);
+                    _logger.LogWarning(
+                        lex,
+                        "Failed to warmup ledger after confirming booking {BookingRef}",
+                        booking.BookingReference
+                    );
                 }
 
                 // Send booking confirmation email (best-effort)
                 try
                 {
-                    await _emailService.SendBookingConfirmationAsync(booking, booking.BaseAmount, booking.ServiceFee);
+                    await _emailService.SendBookingConfirmationAsync(
+                        booking,
+                        booking.BaseAmount,
+                        booking.ServiceFee
+                    );
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to send booking confirmation email for booking {BookingId}", booking.Id);
+                    _logger.LogError(
+                        ex,
+                        "Failed to send booking confirmation email for booking {BookingId}",
+                        booking.Id
+                    );
                 }
 
                 return await MapToBookingResponseAsync(booking);
@@ -370,13 +433,17 @@ namespace visita_booking_api.Services.Implementation
             }
         }
 
-        public async Task<BookingResponseDto> CancelBookingAsync(int bookingId, CancelBookingRequestDto request, int userId)
+        public async Task<BookingResponseDto> CancelBookingAsync(
+            int bookingId,
+            CancelBookingRequestDto request,
+            int userId
+        )
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                var booking = await _context.Bookings
-                    .Include(b => b.Reservation)
+                var booking = await _context
+                    .Bookings.Include(b => b.Reservation)
                     .Include(b => b.Payments)
                     .FirstOrDefaultAsync(b => b.Id == bookingId);
 
@@ -410,7 +477,9 @@ namespace visita_booking_api.Services.Implementation
                     // Expire Xendit invoice if exists
                     if (!string.IsNullOrEmpty(booking.Reservation.XenditInvoiceId))
                     {
-                        await _xenditService.ExpireInvoiceAsync(booking.Reservation.XenditInvoiceId);
+                        await _xenditService.ExpireInvoiceAsync(
+                            booking.Reservation.XenditInvoiceId
+                        );
                     }
                 }
 
@@ -420,40 +489,59 @@ namespace visita_booking_api.Services.Implementation
                 // Process refund if applicable
                 if (request.RequestRefund && booking.PaymentStatus == PaymentStatus.Paid)
                 {
-                    var successfulPayment = booking.Payments.FirstOrDefault(p => p.Status == PaymentStatus.Paid);
+                    var successfulPayment = booking.Payments.FirstOrDefault(p =>
+                        p.Status == PaymentStatus.Paid
+                    );
                     if (successfulPayment != null)
                     {
-                        await ProcessRefundAsync(bookingId, new RefundPaymentRequestDto
-                        {
-                            BookingReference = booking.BookingReference,
-                            RefundReason = request.CancellationReason,
-                            ProcessedBy = request.CancelledBy
-                        });
+                        await ProcessRefundAsync(
+                            bookingId,
+                            new RefundPaymentRequestDto
+                            {
+                                BookingReference = booking.BookingReference,
+                                RefundReason = request.CancellationReason,
+                                ProcessedBy = request.CancelledBy,
+                            }
+                        );
                     }
                 }
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                _logger.LogInformation("Cancelled booking {BookingReference} by user {UserId}", booking.BookingReference, userId);
+                _logger.LogInformation(
+                    "Cancelled booking {BookingReference} by user {UserId}",
+                    booking.BookingReference,
+                    userId
+                );
 
                 return await MapToBookingResponseAsync(booking);
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                _logger.LogError(ex, "Error cancelling booking {BookingId} by user {UserId}", bookingId, userId);
+                _logger.LogError(
+                    ex,
+                    "Error cancelling booking {BookingId} by user {UserId}",
+                    bookingId,
+                    userId
+                );
                 throw;
             }
         }
 
-        public async Task<BookingReservationDto> ExtendReservationAsync(ExtendReservationRequestDto request, int userId)
+        public async Task<BookingReservationDto> ExtendReservationAsync(
+            ExtendReservationRequestDto request,
+            int userId
+        )
         {
             try
             {
-                var reservation = await _context.BookingReservations
-                    .Include(r => r.Booking)
-                    .FirstOrDefaultAsync(r => r.ReservationReference == request.ReservationReference && r.UserId == userId);
+                var reservation = await _context
+                    .BookingReservations.Include(r => r.Booking)
+                    .FirstOrDefaultAsync(r =>
+                        r.ReservationReference == request.ReservationReference && r.UserId == userId
+                    );
 
                 if (reservation == null)
                     throw new ArgumentException("Reservation not found");
@@ -471,8 +559,9 @@ namespace visita_booking_api.Services.Implementation
                 reservation.UpdatedAt = DateTime.UtcNow;
 
                 // Update availability lock if exists
-                var availabilityLock = await _context.BookingAvailabilityLocks
-                    .FirstOrDefaultAsync(l => l.ReservationId == reservation.Id && l.IsActive);
+                var availabilityLock = await _context.BookingAvailabilityLocks.FirstOrDefaultAsync(
+                    l => l.ReservationId == reservation.Id && l.IsActive
+                );
 
                 if (availabilityLock != null)
                 {
@@ -481,24 +570,35 @@ namespace visita_booking_api.Services.Implementation
 
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("Extended reservation {ReservationReference} by {Minutes} minutes",
-                    request.ReservationReference, request.ExtensionMinutes);
+                _logger.LogInformation(
+                    "Extended reservation {ReservationReference} by {Minutes} minutes",
+                    request.ReservationReference,
+                    request.ExtensionMinutes
+                );
 
                 return MapToReservationDto(reservation);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error extending reservation {ReservationReference}", request.ReservationReference);
+                _logger.LogError(
+                    ex,
+                    "Error extending reservation {ReservationReference}",
+                    request.ReservationReference
+                );
                 throw;
             }
         }
 
         public async Task<BookingResponseDto?> GetBookingAsync(int bookingId, int? userId = null)
         {
-            var booking = await _context.Bookings
-                .Include(b => b.Room).ThenInclude(r => r.Photos)
-                .Include(b => b.Room).ThenInclude(r => r.RoomAmenities).ThenInclude(ra => ra.Amenity)
-                .Include(b => b.Room).ThenInclude(r => r.Accommodation)
+            var booking = await _context
+                .Bookings.Include(b => b.Room)
+                .ThenInclude(r => r.Photos)
+                .Include(b => b.Room)
+                .ThenInclude(r => r.RoomAmenities)
+                .ThenInclude(ra => ra.Amenity)
+                .Include(b => b.Room)
+                .ThenInclude(r => r.Accommodation)
                 .Include(b => b.User)
                 .Include(b => b.Reservation)
                 .Include(b => b.Payments)
@@ -514,12 +614,19 @@ namespace visita_booking_api.Services.Implementation
             return await MapToBookingResponseAsync(booking);
         }
 
-        public async Task<BookingResponseDto?> GetBookingByReferenceAsync(string bookingReference, int? userId = null)
+        public async Task<BookingResponseDto?> GetBookingByReferenceAsync(
+            string bookingReference,
+            int? userId = null
+        )
         {
-            var booking = await _context.Bookings
-                .Include(b => b.Room).ThenInclude(r => r.Photos)
-                .Include(b => b.Room).ThenInclude(r => r.RoomAmenities).ThenInclude(ra => ra.Amenity)
-                .Include(b => b.Room).ThenInclude(r => r.Accommodation)
+            var booking = await _context
+                .Bookings.Include(b => b.Room)
+                .ThenInclude(r => r.Photos)
+                .Include(b => b.Room)
+                .ThenInclude(r => r.RoomAmenities)
+                .ThenInclude(ra => ra.Amenity)
+                .Include(b => b.Room)
+                .ThenInclude(r => r.Accommodation)
                 .Include(b => b.User)
                 .Include(b => b.Reservation)
                 .Include(b => b.Payments)
@@ -535,10 +642,14 @@ namespace visita_booking_api.Services.Implementation
             return await MapToBookingResponseAsync(booking);
         }
 
-        public async Task<PagedResult<BookingSummaryDto>> SearchBookingsAsync(BookingSearchRequestDto request, int? userId = null)
+        public async Task<PagedResult<BookingSummaryDto>> SearchBookingsAsync(
+            BookingSearchRequestDto request,
+            int? userId = null
+        )
         {
-            var query = _context.Bookings
-                .Include(b => b.Room).ThenInclude(r => r.Accommodation)
+            var query = _context
+                .Bookings.Include(b => b.Room)
+                .ThenInclude(r => r.Accommodation)
                 .AsQueryable();
 
             // Apply user filter for non-admin users
@@ -576,18 +687,18 @@ namespace visita_booking_api.Services.Implementation
             // Apply sorting
             query = request.SortBy?.ToLowerInvariant() switch
             {
-                "checkindate" => request.SortDirection?.ToUpperInvariant() == "DESC" 
-                    ? query.OrderByDescending(b => b.CheckInDate) 
+                "checkindate" => request.SortDirection?.ToUpperInvariant() == "DESC"
+                    ? query.OrderByDescending(b => b.CheckInDate)
                     : query.OrderBy(b => b.CheckInDate),
-                "totalamount" => request.SortDirection?.ToUpperInvariant() == "DESC" 
-                    ? query.OrderByDescending(b => b.TotalAmount) 
+                "totalamount" => request.SortDirection?.ToUpperInvariant() == "DESC"
+                    ? query.OrderByDescending(b => b.TotalAmount)
                     : query.OrderBy(b => b.TotalAmount),
-                "status" => request.SortDirection?.ToUpperInvariant() == "DESC" 
-                    ? query.OrderByDescending(b => b.Status) 
+                "status" => request.SortDirection?.ToUpperInvariant() == "DESC"
+                    ? query.OrderByDescending(b => b.Status)
                     : query.OrderBy(b => b.Status),
-                _ => request.SortDirection?.ToUpperInvariant() == "DESC" 
-                    ? query.OrderByDescending(b => b.CreatedAt) 
-                    : query.OrderBy(b => b.CreatedAt)
+                _ => request.SortDirection?.ToUpperInvariant() == "DESC"
+                    ? query.OrderByDescending(b => b.CreatedAt)
+                    : query.OrderBy(b => b.CreatedAt),
             };
 
             // Apply pagination and execute query
@@ -597,45 +708,53 @@ namespace visita_booking_api.Services.Implementation
                 .ToListAsync();
 
             // Map to DTOs with status descriptions and accommodation data
-            var bookingDtos = bookings.Select(b => new BookingSummaryDto
-            {
-                Id = b.Id,
-                BookingReference = b.BookingReference,
-                RoomName = b.Room?.Name ?? "",
-                CheckInDate = b.CheckInDate,
-                CheckOutDate = b.CheckOutDate,
-                NumberOfNights = b.NumberOfNights,
-                TotalAmount = b.TotalAmount,
-                Status = b.Status,
-                StatusDescription = GetBookingStatusDescription(b.Status),
-                PaymentStatus = b.PaymentStatus,
-                PaymentStatusDescription = GetPaymentStatusDescription(b.PaymentStatus),
-                GuestName = b.GuestName,
-                CreatedAt = b.CreatedAt,
-                Accommodation = b.Room?.Accommodation != null ? new AccommodationSummaryDto
+            var bookingDtos = bookings
+                .Select(b => new BookingSummaryDto
                 {
-                    Id = b.Room.Accommodation.Id,
-                    Name = b.Room.Accommodation.Name,
-                    Description = b.Room.Accommodation.Description,
-                    Logo = b.Room.Accommodation.Logo,
-                    IsActive = b.Room.Accommodation.IsActive,
-                    ActiveRoomCount = 0 // Not needed for booking summary
-                } : null
-            }).ToList();
+                    Id = b.Id,
+                    BookingReference = b.BookingReference,
+                    RoomName = b.Room?.Name ?? "",
+                    CheckInDate = b.CheckInDate,
+                    CheckOutDate = b.CheckOutDate,
+                    NumberOfNights = b.NumberOfNights,
+                    TotalAmount = b.TotalAmount,
+                    Status = b.Status,
+                    StatusDescription = GetBookingStatusDescription(b.Status),
+                    PaymentStatus = b.PaymentStatus,
+                    PaymentStatusDescription = GetPaymentStatusDescription(b.PaymentStatus),
+                    GuestName = b.GuestName,
+                    CreatedAt = b.CreatedAt,
+                    Accommodation =
+                        b.Room?.Accommodation != null
+                            ? new AccommodationSummaryDto
+                            {
+                                Id = b.Room.Accommodation.Id,
+                                Name = b.Room.Accommodation.Name,
+                                Description = b.Room.Accommodation.Description,
+                                Logo = b.Room.Accommodation.Logo,
+                                IsActive = b.Room.Accommodation.IsActive,
+                                ActiveRoomCount = 0, // Not needed for booking summary
+                            }
+                            : null,
+                })
+                .ToList();
 
             return new PagedResult<BookingSummaryDto>
             {
                 Items = bookingDtos,
                 TotalCount = totalCount,
                 PageNumber = request.PageNumber,
-                PageSize = request.PageSize
+                PageSize = request.PageSize,
             };
         }
 
-        public async Task<BookingResponseDto> UpdateBookingStatusAsync(int bookingId, UpdateBookingStatusDto request)
+        public async Task<BookingResponseDto> UpdateBookingStatusAsync(
+            int bookingId,
+            UpdateBookingStatusDto request
+        )
         {
-            var booking = await _context.Bookings
-                .Include(b => b.Reservation)
+            var booking = await _context
+                .Bookings.Include(b => b.Reservation)
                 .FirstOrDefaultAsync(b => b.Id == bookingId);
 
             if (booking == null)
@@ -658,7 +777,7 @@ namespace visita_booking_api.Services.Implementation
                     booking.CancelledAt = DateTime.UtcNow;
                     booking.CancelledBy = request.UpdatedBy;
                     booking.CancellationReason = request.Reason;
-                    
+
                     if (booking.Reservation != null)
                     {
                         booking.Reservation.Status = ReservationStatus.Cancelled;
@@ -670,8 +789,11 @@ namespace visita_booking_api.Services.Implementation
 
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Updated booking {BookingReference} status to {Status}",
-                booking.BookingReference, request.Status);
+            _logger.LogInformation(
+                "Updated booking {BookingReference} status to {Status}",
+                booking.BookingReference,
+                request.Status
+            );
 
             return await MapToBookingResponseAsync(booking);
         }
@@ -680,8 +802,11 @@ namespace visita_booking_api.Services.Implementation
         {
             try
             {
-                var webhookResult = await _xenditService.ProcessWebhookAsync(webhookData, signature);
-                
+                var webhookResult = await _xenditService.ProcessWebhookAsync(
+                    webhookData,
+                    signature
+                );
+
                 if (!webhookResult.IsValid)
                 {
                     _logger.LogWarning("Invalid webhook signature received");
@@ -698,19 +823,25 @@ namespace visita_booking_api.Services.Implementation
                 var parts = webhookResult.ExternalId.Split('-');
                 if (parts.Length < 2 || parts[0] != "booking")
                 {
-                    _logger.LogWarning("Invalid external ID format: {ExternalId}", webhookResult.ExternalId);
+                    _logger.LogWarning(
+                        "Invalid external ID format: {ExternalId}",
+                        webhookResult.ExternalId
+                    );
                     return false;
                 }
 
                 var bookingReference = parts[1];
-                var booking = await _context.Bookings
-                    .Include(b => b.Reservation)
+                var booking = await _context
+                    .Bookings.Include(b => b.Reservation)
                     .Include(b => b.Payments)
                     .FirstOrDefaultAsync(b => b.BookingReference == bookingReference);
 
                 if (booking == null)
                 {
-                    _logger.LogWarning("Booking not found for reference: {BookingReference}", bookingReference);
+                    _logger.LogWarning(
+                        "Booking not found for reference: {BookingReference}",
+                        bookingReference
+                    );
                     return false;
                 }
 
@@ -730,7 +861,10 @@ namespace visita_booking_api.Services.Implementation
                             await HandleInvoicePaymentFailedWebhook(booking, webhookResult);
                             break;
                         default:
-                            _logger.LogInformation("Unhandled webhook event type: {EventType}", webhookResult.EventType);
+                            _logger.LogInformation(
+                                "Unhandled webhook event type: {EventType}",
+                                webhookResult.EventType
+                            );
                             break;
                     }
 
@@ -756,30 +890,42 @@ namespace visita_booking_api.Services.Implementation
         {
             try
             {
-                var booking = await _context.Bookings
-                    .Include(b => b.Payments)
+                var booking = await _context
+                    .Bookings.Include(b => b.Payments)
                     .FirstOrDefaultAsync(b => b.Id == bookingId);
 
                 if (booking == null)
                     throw new ArgumentException("Booking not found");
 
-                var successfulPayment = booking.Payments.FirstOrDefault(p => p.Status == PaymentStatus.Paid);
+                var successfulPayment = booking.Payments.FirstOrDefault(p =>
+                    p.Status == PaymentStatus.Paid
+                );
                 if (successfulPayment == null)
-                    throw new InvalidOperationException("No successful payment found for this booking");
+                    throw new InvalidOperationException(
+                        "No successful payment found for this booking"
+                    );
 
                 var refundAmount = request.RefundAmount ?? successfulPayment.Amount;
-                
+
                 if (refundAmount > successfulPayment.Amount)
-                    throw new InvalidOperationException("Refund amount cannot exceed payment amount");
+                    throw new InvalidOperationException(
+                        "Refund amount cannot exceed payment amount"
+                    );
 
                 // Create refund through Xendit
                 var refundResult = await _xenditService.CreateRefundAsync(
-                    successfulPayment.XenditPaymentId ?? "", refundAmount, request.RefundReason);
+                    successfulPayment.XenditPaymentId ?? "",
+                    refundAmount,
+                    request.RefundReason
+                );
 
                 if (!refundResult.IsSuccess)
                 {
-                    _logger.LogError("Failed to create refund for payment {PaymentId}: {Error}",
-                        successfulPayment.Id, refundResult.ErrorMessage);
+                    _logger.LogError(
+                        "Failed to create refund for payment {PaymentId}: {Error}",
+                        successfulPayment.Id,
+                        refundResult.ErrorMessage
+                    );
                     return false;
                 }
 
@@ -797,7 +943,7 @@ namespace visita_booking_api.Services.Implementation
                     RefundedFromPaymentId = successfulPayment.Id,
                     RefundReason = request.RefundReason,
                     CreatedBy = request.ProcessedBy,
-                    ProviderMetadata = JsonSerializer.Serialize(refundResult.RawResponse)
+                    ProviderMetadata = JsonSerializer.Serialize(refundResult.RawResponse),
                 };
 
                 _context.BookingPayments.Add(refundPayment);
@@ -810,8 +956,11 @@ namespace visita_booking_api.Services.Implementation
 
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation("Initiated refund of {Amount} for booking {BookingReference}",
-                    refundAmount, booking.BookingReference);
+                _logger.LogInformation(
+                    "Initiated refund of {Amount} for booking {BookingReference}",
+                    refundAmount,
+                    booking.BookingReference
+                );
 
                 return true;
             }
@@ -822,62 +971,79 @@ namespace visita_booking_api.Services.Implementation
             }
         }
 
-        public async Task<PagedResult<BookingSummaryDto>> GetUserBookingHistoryAsync(int userId, int pageNumber = 1, int pageSize = 10)
+        public async Task<PagedResult<BookingSummaryDto>> GetUserBookingHistoryAsync(
+            int userId,
+            int pageNumber = 1,
+            int pageSize = 10
+        )
         {
-            return await SearchBookingsAsync(new BookingSearchRequestDto
-            {
-                PageNumber = pageNumber,
-                PageSize = pageSize,
-                SortBy = "CreatedAt",
-                SortDirection = "DESC"
-            }, userId);
+            return await SearchBookingsAsync(
+                new BookingSearchRequestDto
+                {
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    SortBy = "CreatedAt",
+                    SortDirection = "DESC",
+                },
+                userId
+            );
         }
 
         public async Task<List<BookingSummaryDto>> GetUpcomingBookingsAsync(int userId)
         {
-            var upcomingBookings = await _context.Bookings
-                .Include(b => b.Room).ThenInclude(r => r.Accommodation)
-                .Where(b => b.UserId == userId 
-                    && b.CheckInDate >= _timezoneService.Today 
-                    && b.Status != BookingStatus.Cancelled)
+            var upcomingBookings = await _context
+                .Bookings.Include(b => b.Room)
+                .ThenInclude(r => r.Accommodation)
+                .Where(b =>
+                    b.UserId == userId
+                    && b.CheckInDate >= _timezoneService.Today
+                    && b.Status != BookingStatus.Cancelled
+                )
                 .OrderBy(b => b.CheckInDate)
                 .Take(10)
                 .ToListAsync();
 
-            return upcomingBookings.Select(b => new BookingSummaryDto
-            {
-                Id = b.Id,
-                BookingReference = b.BookingReference,
-                RoomName = b.Room?.Name ?? "",
-                CheckInDate = b.CheckInDate,
-                CheckOutDate = b.CheckOutDate,
-                NumberOfNights = b.NumberOfNights,
-                TotalAmount = b.TotalAmount,
-                Status = b.Status,
-                StatusDescription = GetBookingStatusDescription(b.Status),
-                PaymentStatus = b.PaymentStatus,
-                PaymentStatusDescription = GetPaymentStatusDescription(b.PaymentStatus),
-                GuestName = b.GuestName,
-                CreatedAt = b.CreatedAt,
-                Accommodation = b.Room?.Accommodation != null ? new AccommodationSummaryDto
+            return upcomingBookings
+                .Select(b => new BookingSummaryDto
                 {
-                    Id = b.Room.Accommodation.Id,
-                    Name = b.Room.Accommodation.Name,
-                    Description = b.Room.Accommodation.Description,
-                    Logo = b.Room.Accommodation.Logo,
-                    IsActive = b.Room.Accommodation.IsActive,
-                    ActiveRoomCount = 0
-                } : null
-            }).ToList();
+                    Id = b.Id,
+                    BookingReference = b.BookingReference,
+                    RoomName = b.Room?.Name ?? "",
+                    CheckInDate = b.CheckInDate,
+                    CheckOutDate = b.CheckOutDate,
+                    NumberOfNights = b.NumberOfNights,
+                    TotalAmount = b.TotalAmount,
+                    Status = b.Status,
+                    StatusDescription = GetBookingStatusDescription(b.Status),
+                    PaymentStatus = b.PaymentStatus,
+                    PaymentStatusDescription = GetPaymentStatusDescription(b.PaymentStatus),
+                    GuestName = b.GuestName,
+                    CreatedAt = b.CreatedAt,
+                    Accommodation =
+                        b.Room?.Accommodation != null
+                            ? new AccommodationSummaryDto
+                            {
+                                Id = b.Room.Accommodation.Id,
+                                Name = b.Room.Accommodation.Name,
+                                Description = b.Room.Accommodation.Description,
+                                Logo = b.Room.Accommodation.Logo,
+                                IsActive = b.Room.Accommodation.IsActive,
+                                ActiveRoomCount = 0,
+                            }
+                            : null,
+                })
+                .ToList();
         }
 
         public async Task<int> CleanupExpiredReservationsAsync()
         {
             try
             {
-                var expiredReservations = await _context.BookingReservations
-                    .Include(r => r.Booking)
-                    .Where(r => r.Status == ReservationStatus.Active && r.ExpiresAt <= DateTime.UtcNow)
+                var expiredReservations = await _context
+                    .BookingReservations.Include(r => r.Booking)
+                    .Where(r =>
+                        r.Status == ReservationStatus.Active && r.ExpiresAt <= DateTime.UtcNow
+                    )
                     .ToListAsync();
 
                 var cleanupCount = 0;
@@ -892,7 +1058,10 @@ namespace visita_booking_api.Services.Implementation
                         reservation.UpdatedAt = DateTime.UtcNow;
 
                         // Update booking status
-                        if (reservation.Booking != null && reservation.Booking.Status == BookingStatus.Reserved)
+                        if (
+                            reservation.Booking != null
+                            && reservation.Booking.Status == BookingStatus.Reserved
+                        )
                         {
                             reservation.Booking.Status = BookingStatus.Cancelled;
                             reservation.Booking.CancelledAt = DateTime.UtcNow;
@@ -901,7 +1070,10 @@ namespace visita_booking_api.Services.Implementation
                         }
 
                         // Release availability lock
-                        await ReleaseAvailabilityLockAsync(reservation.BookingId, "Reservation expired");
+                        await ReleaseAvailabilityLockAsync(
+                            reservation.BookingId,
+                            "Reservation expired"
+                        );
 
                         // Expire Xendit invoice if exists
                         if (!string.IsNullOrEmpty(reservation.XenditInvoiceId))
@@ -917,7 +1089,11 @@ namespace visita_booking_api.Services.Implementation
                     catch (Exception ex)
                     {
                         await transaction.RollbackAsync();
-                        _logger.LogError(ex, "Error cleaning up expired reservation {ReservationId}", reservation.Id);
+                        _logger.LogError(
+                            ex,
+                            "Error cleaning up expired reservation {ReservationId}",
+                            reservation.Id
+                        );
                     }
                 }
 
@@ -939,10 +1115,12 @@ namespace visita_booking_api.Services.Implementation
         {
             try
             {
-                var pendingPayments = await _context.BookingPayments
-                    .Where(p => p.Status == PaymentStatus.Processing 
+                var pendingPayments = await _context
+                    .BookingPayments.Where(p =>
+                        p.Status == PaymentStatus.Processing
                         && !string.IsNullOrEmpty(p.XenditInvoiceId)
-                        && p.CreatedAt > DateTime.UtcNow.AddDays(-7)) // Only sync payments from last 7 days
+                        && p.CreatedAt > DateTime.UtcNow.AddDays(-7)
+                    ) // Only sync payments from last 7 days
                     .ToListAsync();
 
                 var syncCount = 0;
@@ -951,14 +1129,16 @@ namespace visita_booking_api.Services.Implementation
                 {
                     try
                     {
-                        var invoiceStatus = await _xenditService.GetInvoiceStatusAsync(payment.XenditInvoiceId!);
+                        var invoiceStatus = await _xenditService.GetInvoiceStatusAsync(
+                            payment.XenditInvoiceId!
+                        );
 
                         var newStatus = invoiceStatus.Status.ToLowerInvariant() switch
                         {
                             "paid" => PaymentStatus.Paid,
                             "expired" => PaymentStatus.Failed,
                             "pending" => PaymentStatus.Pending,
-                            _ => payment.Status
+                            _ => payment.Status,
                         };
 
                         if (newStatus != payment.Status)
@@ -1000,13 +1180,20 @@ namespace visita_booking_api.Services.Implementation
 
         #region Private Helper Methods
 
-        private async Task<(bool IsAvailable, string Message, List<DateTime>? ConflictingDates)> IsRoomAvailableAsync(
-            int roomId, DateTime checkIn, DateTime checkOut)
+        private async Task<(
+            bool IsAvailable,
+            string Message,
+            List<DateTime>? ConflictingDates
+        )> IsRoomAvailableAsync(int roomId, DateTime checkIn, DateTime checkOut)
         {
             // First try ledger (cache) - fast path. Ledger is authoritative if present.
             try
             {
-                var ledger = await _ledgerService.TryGetMinAvailableFromLedgerAsync(new List<int> { roomId }, checkIn, checkOut);
+                var ledger = await _ledgerService.TryGetMinAvailableFromLedgerAsync(
+                    new List<int> { roomId },
+                    checkIn,
+                    checkOut
+                );
                 if (ledger != null && ledger.ContainsKey(roomId))
                 {
                     var minAvailable = ledger[roomId];
@@ -1023,15 +1210,21 @@ namespace visita_booking_api.Services.Implementation
             catch (Exception ex)
             {
                 // Ledger read failure: log and continue to fallback checks
-                _logger.LogWarning(ex, "Ledger read failed during availability check for room {RoomId}", roomId);
+                _logger.LogWarning(
+                    ex,
+                    "Ledger read failed during availability check for room {RoomId}",
+                    roomId
+                );
             }
 
             // Check for existing bookings
-            var conflictingBookings = await _context.Bookings
-                .Where(b => b.RoomId == roomId
+            var conflictingBookings = await _context
+                .Bookings.Where(b =>
+                    b.RoomId == roomId
                     && b.Status != BookingStatus.Cancelled
                     && b.CheckInDate < checkOut
-                    && b.CheckOutDate > checkIn)
+                    && b.CheckOutDate > checkIn
+                )
                 .Select(b => new { b.CheckInDate, b.CheckOutDate })
                 .ToListAsync();
 
@@ -1040,7 +1233,11 @@ namespace visita_booking_api.Services.Implementation
                 var conflictingDates = new List<DateTime>();
                 foreach (var booking in conflictingBookings)
                 {
-                    for (var date = booking.CheckInDate; date < booking.CheckOutDate; date = date.AddDays(1))
+                    for (
+                        var date = booking.CheckInDate;
+                        date < booking.CheckOutDate;
+                        date = date.AddDays(1)
+                    )
                     {
                         if (date >= checkIn && date < checkOut && !conflictingDates.Contains(date))
                         {
@@ -1053,12 +1250,14 @@ namespace visita_booking_api.Services.Implementation
             }
 
             // Check active reservations (including availability locks)
-            var activeReservations = await _context.BookingReservations
-                .Where(r => r.RoomId == roomId
+            var activeReservations = await _context
+                .BookingReservations.Where(r =>
+                    r.RoomId == roomId
                     && r.Status == ReservationStatus.Active
                     && r.ExpiresAt > DateTime.UtcNow
                     && r.CheckInDate < checkOut
-                    && r.CheckOutDate > checkIn)
+                    && r.CheckOutDate > checkIn
+                )
                 .AnyAsync();
 
             if (activeReservations)
@@ -1067,11 +1266,10 @@ namespace visita_booking_api.Services.Implementation
             }
 
             // Check availability overrides
-            var unavailableDates = await _context.RoomAvailabilityOverrides
-                .Where(o => o.RoomId == roomId
-                    && !o.IsAvailable
-                    && o.Date >= checkIn
-                    && o.Date < checkOut)
+            var unavailableDates = await _context
+                .RoomAvailabilityOverrides.Where(o =>
+                    o.RoomId == roomId && !o.IsAvailable && o.Date >= checkIn && o.Date < checkOut
+                )
                 .Select(o => o.Date)
                 .ToListAsync();
 
@@ -1084,7 +1282,11 @@ namespace visita_booking_api.Services.Implementation
         }
 
         private async Task<BookingPricingDetailsDto> CalculatePricingAsync(
-            int roomId, DateTime checkIn, DateTime checkOut, int numberOfGuests)
+            int roomId,
+            DateTime checkIn,
+            DateTime checkOut,
+            int numberOfGuests
+        )
         {
             var numberOfNights = (checkOut - checkIn).Days;
             var dailyPrices = new List<DailyPriceDto>();
@@ -1101,21 +1303,26 @@ namespace visita_booking_api.Services.Implementation
             for (var date = checkIn; date < checkOut; date = date.AddDays(1))
             {
                 var dailyPrice = await _roomCalendarService.GetPriceForDateAsync(roomId, date);
-                var isWeekend = date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
+                var isWeekend =
+                    date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday;
                 var isHoliday = await IsHolidayAsync(date);
 
                 var priceModifiers = new List<string>();
-                if (isWeekend) priceModifiers.Add("Weekend");
-                if (isHoliday) priceModifiers.Add("Holiday");
+                if (isWeekend)
+                    priceModifiers.Add("Weekend");
+                if (isHoliday)
+                    priceModifiers.Add("Holiday");
 
-                dailyPrices.Add(new DailyPriceDto
-                {
-                    Date = date,
-                    Price = dailyPrice,
-                    IsWeekend = isWeekend,
-                    IsHoliday = isHoliday,
-                    PriceModifiers = priceModifiers
-                });
+                dailyPrices.Add(
+                    new DailyPriceDto
+                    {
+                        Date = date,
+                        Price = dailyPrice,
+                        IsWeekend = isWeekend,
+                        IsHoliday = isHoliday,
+                        PriceModifiers = priceModifiers,
+                    }
+                );
 
                 totalBaseAmount += dailyPrice;
             }
@@ -1139,14 +1346,13 @@ namespace visita_booking_api.Services.Implementation
                 TotalAmount = totalAmount,
                 NumberOfNights = numberOfNights,
                 DailyPrices = dailyPrices,
-                AppliedPromotions = new List<string>() // TODO: Implement promotions
+                AppliedPromotions = new List<string>(), // TODO: Implement promotions
             };
         }
 
         private async Task<bool> IsHolidayAsync(DateTime date)
         {
-            return await _context.HolidayCalendar
-                .AnyAsync(h => h.Date == date && h.IsActive);
+            return await _context.HolidayCalendar.AnyAsync(h => h.Date == date && h.IsActive);
         }
 
         private async Task<string> GenerateBookingReferenceAsync()
@@ -1161,16 +1367,15 @@ namespace visita_booking_api.Services.Implementation
                 bookingRef = $"VB-{timestamp}{random}-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
 
                 exists = await _context.Bookings.AnyAsync(b => b.BookingReference == bookingRef);
-            } 
-            while (exists);
+            } while (exists);
 
             return bookingRef;
         }
 
         private async Task ReleaseAvailabilityLockAsync(int bookingId, string reason)
         {
-            var locks = await _context.BookingAvailabilityLocks
-                .Where(l => l.BookingId == bookingId && l.IsActive)
+            var locks = await _context
+                .BookingAvailabilityLocks.Where(l => l.BookingId == bookingId && l.IsActive)
                 .ToListAsync();
 
             foreach (var lockItem in locks)
@@ -1181,7 +1386,10 @@ namespace visita_booking_api.Services.Implementation
             }
         }
 
-        private async Task HandleInvoicePaidWebhook(Booking booking, XenditWebhookResult webhookResult)
+        private async Task HandleInvoicePaidWebhook(
+            Booking booking,
+            XenditWebhookResult webhookResult
+        )
         {
             // Create payment record
             var payment = new BookingPayment
@@ -1198,7 +1406,7 @@ namespace visita_booking_api.Services.Implementation
                 XenditPaymentId = webhookResult.PaymentId,
                 ProcessedAt = webhookResult.PaidAt ?? DateTime.UtcNow,
                 ConfirmedAt = webhookResult.PaidAt ?? DateTime.UtcNow,
-                XenditWebhookData = JsonSerializer.Serialize(webhookResult.WebhookData)
+                XenditWebhookData = JsonSerializer.Serialize(webhookResult.WebhookData),
             };
 
             _context.BookingPayments.Add(payment);
@@ -1207,7 +1415,10 @@ namespace visita_booking_api.Services.Implementation
             await ConfirmBookingAsync(booking.Id, webhookResult.PaymentId ?? "");
         }
 
-        private async Task HandleInvoiceExpiredWebhook(Booking booking, XenditWebhookResult webhookResult)
+        private async Task HandleInvoiceExpiredWebhook(
+            Booking booking,
+            XenditWebhookResult webhookResult
+        )
         {
             if (booking.Status == BookingStatus.Reserved)
             {
@@ -1226,11 +1437,17 @@ namespace visita_booking_api.Services.Implementation
             }
         }
 
-        private async Task HandleInvoicePaymentFailedWebhook(Booking booking, XenditWebhookResult webhookResult)
+        private async Task HandleInvoicePaymentFailedWebhook(
+            Booking booking,
+            XenditWebhookResult webhookResult
+        )
         {
             // Log payment failure but don't automatically cancel the booking
-            _logger.LogWarning("Payment failed for booking {BookingReference}: {Reason}",
-                booking.BookingReference, webhookResult.ErrorMessage);
+            _logger.LogWarning(
+                "Payment failed for booking {BookingReference}: {Reason}",
+                booking.BookingReference,
+                webhookResult.ErrorMessage
+            );
 
             // Create failed payment record
             var payment = new BookingPayment
@@ -1246,7 +1463,7 @@ namespace visita_booking_api.Services.Implementation
                 XenditInvoiceId = webhookResult.InvoiceId,
                 FailedAt = DateTime.UtcNow,
                 FailureReason = webhookResult.ErrorMessage ?? "Payment failed",
-                XenditWebhookData = JsonSerializer.Serialize(webhookResult.WebhookData)
+                XenditWebhookData = JsonSerializer.Serialize(webhookResult.WebhookData),
             };
 
             _context.BookingPayments.Add(payment);
@@ -1258,10 +1475,14 @@ namespace visita_booking_api.Services.Implementation
             // Ensure all required navigation properties are loaded
             if (booking.Room == null)
             {
-                booking = await _context.Bookings
-                    .Include(b => b.Room).ThenInclude(r => r.Photos)
-                    .Include(b => b.Room).ThenInclude(r => r.RoomAmenities).ThenInclude(ra => ra.Amenity)
-                    .Include(b => b.Room).ThenInclude(r => r.Accommodation)
+                booking = await _context
+                    .Bookings.Include(b => b.Room)
+                    .ThenInclude(r => r.Photos)
+                    .Include(b => b.Room)
+                    .ThenInclude(r => r.RoomAmenities)
+                    .ThenInclude(ra => ra.Amenity)
+                    .Include(b => b.Room)
+                    .ThenInclude(r => r.Accommodation)
                     .Include(b => b.User)
                     .Include(b => b.Reservation)
                     .Include(b => b.Payments)
@@ -1294,27 +1515,34 @@ namespace visita_booking_api.Services.Implementation
                 CancellationReason = booking.CancellationReason,
                 ActualCheckInAt = booking.ActualCheckInAt,
                 ActualCheckOutAt = booking.ActualCheckOutAt,
-                Reservation = booking.Reservation != null ? MapToReservationDto(booking.Reservation) : null,
+                Reservation =
+                    booking.Reservation != null ? MapToReservationDto(booking.Reservation) : null,
                 Payments = booking.Payments.Select(MapToPaymentDto).ToList(),
-                Room = booking.Room != null ? new RoomSummaryDto
-                {
-                    Id = booking.Room.Id,
-                    Name = booking.Room.Name,
-                    Description = booking.Room.Description,
-                    DefaultPrice = booking.Room.DefaultPrice,
-                    MaxGuests = booking.Room.MaxGuests,
-                    MainPhotoUrl = booking.Room.MainPhotoUrl,
-                    Amenities = booking.Room.Amenities.Select(a => a.Name).ToList()
-                } : null,
-                Accommodation = booking.Room?.Accommodation != null ? new AccommodationSummaryDto
-                {
-                    Id = booking.Room.Accommodation.Id,
-                    Name = booking.Room.Accommodation.Name,
-                    Description = booking.Room.Accommodation.Description,
-                    Logo = booking.Room.Accommodation.Logo,
-                    IsActive = booking.Room.Accommodation.IsActive,
-                    ActiveRoomCount = 0 // Not needed for booking response
-                } : null
+                Room =
+                    booking.Room != null
+                        ? new RoomSummaryDto
+                        {
+                            Id = booking.Room.Id,
+                            Name = booking.Room.Name,
+                            Description = booking.Room.Description,
+                            DefaultPrice = booking.Room.DefaultPrice,
+                            MaxGuests = booking.Room.MaxGuests,
+                            MainPhotoUrl = booking.Room.MainPhotoUrl,
+                            Amenities = booking.Room.Amenities.Select(a => a.Name).ToList(),
+                        }
+                        : null,
+                Accommodation =
+                    booking.Room?.Accommodation != null
+                        ? new AccommodationSummaryDto
+                        {
+                            Id = booking.Room.Accommodation.Id,
+                            Name = booking.Room.Accommodation.Name,
+                            Description = booking.Room.Accommodation.Description,
+                            Logo = booking.Room.Accommodation.Logo,
+                            IsActive = booking.Room.Accommodation.IsActive,
+                            ActiveRoomCount = 0, // Not needed for booking response
+                        }
+                        : null,
             };
         }
 
@@ -1333,7 +1561,7 @@ namespace visita_booking_api.Services.Implementation
                 CanExtend = reservation.CanExtend,
                 IsActive = reservation.IsActive,
                 IsExpired = reservation.IsExpired,
-                TimeUntilExpiry = reservation.TimeUntilExpiry
+                TimeUntilExpiry = reservation.TimeUntilExpiry,
             };
         }
 
@@ -1355,10 +1583,10 @@ namespace visita_booking_api.Services.Implementation
                 FailureReason = payment.FailureReason,
                 CardLastFour = payment.CardLastFour,
                 BankCode = payment.BankCode,
-                PaymentDescription = payment.PaymentDescription
+                PaymentDescription = payment.PaymentDescription,
             };
         }
-        
+
         private static string GetBookingStatusDescription(BookingStatus status)
         {
             return status switch
@@ -1369,10 +1597,10 @@ namespace visita_booking_api.Services.Implementation
                 BookingStatus.CheckedOut => "Checked Out",
                 BookingStatus.Cancelled => "Cancelled",
                 BookingStatus.NoShow => "No Show",
-                _ => "Unknown"
+                _ => "Unknown",
             };
         }
-        
+
         private static string GetPaymentStatusDescription(PaymentStatus status)
         {
             return status switch
@@ -1383,10 +1611,10 @@ namespace visita_booking_api.Services.Implementation
                 PaymentStatus.Failed => "Failed",
                 PaymentStatus.Refunded => "Refunded",
                 PaymentStatus.PartialRefund => "Partially Refunded",
-                _ => "Unknown"
+                _ => "Unknown",
             };
         }
-        
+
         /// <summary>
         /// Gets the current GMT+8 time and converts it to UTC for database storage
         /// </summary>
