@@ -30,6 +30,13 @@ namespace visita_booking_api.Models.Entities
         [StringLength(20)]
         public string? ContactNo { get; set; }
 
+        // Check-in/Check-out Times
+        [StringLength(5)]
+        public string? CheckInTime { get; set; }
+
+        [StringLength(5)]
+        public string? CheckOutTime { get; set; }
+
         // Status and approval
         public AccommodationStatus Status { get; set; } = AccommodationStatus.Pending;
         public bool IsActive { get; set; } = false; // Only active when approved
@@ -40,23 +47,22 @@ namespace visita_booking_api.Models.Entities
         // Business Documents (private S3 keys)
         [StringLength(500)]
         public string? BusinessPermitS3Key { get; set; }
-        
+
         [StringLength(100)]
         public string? BusinessPermitNumber { get; set; }
-        
+
         [StringLength(500)]
         public string? DotAccreditationS3Key { get; set; }
-        
+
         [StringLength(100)]
         public string? DotAccreditationNumber { get; set; }
-        
+
         public bool IsBtcMember { get; set; } = false;
-        
 
         // Additional business information
         [StringLength(500)]
         public string? OtherDocumentsS3Key { get; set; }
-        
+
         [StringLength(1000)]
         public string? BusinessNotes { get; set; }
 
@@ -71,19 +77,19 @@ namespace visita_booking_api.Models.Entities
         // Navigation properties
         [ForeignKey(nameof(OwnerId))]
         public virtual VisitaBookingApi.Models.User Owner { get; set; } = null!;
-        
+
         [ForeignKey(nameof(ApprovedById))]
         public virtual VisitaBookingApi.Models.User? ApprovedBy { get; set; }
 
-    public virtual ICollection<Room> Rooms { get; set; } = new List<Room>();
-        public virtual ICollection<AccommodationComment> Comments { get; set; } = new List<AccommodationComment>();
-
+        public virtual ICollection<Room> Rooms { get; set; } = new List<Room>();
+        public virtual ICollection<AccommodationComment> Comments { get; set; } =
+            new List<AccommodationComment>();
 
         public void UpdateTimestamp()
         {
             UpdatedAt = DateTime.UtcNow;
         }
-        
+
         /// <summary>
         /// Approve the accommodation
         /// </summary>
@@ -96,7 +102,7 @@ namespace visita_booking_api.Models.Entities
             RejectionReason = null;
             UpdateTimestamp();
         }
-        
+
         /// <summary>
         /// Reject the accommodation with a reason
         /// </summary>
@@ -109,7 +115,7 @@ namespace visita_booking_api.Models.Entities
             ApprovedById = null;
             UpdateTimestamp();
         }
-        
+
         /// <summary>
         /// Suspend the accommodation
         /// </summary>

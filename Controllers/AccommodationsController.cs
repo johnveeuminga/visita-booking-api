@@ -49,6 +49,8 @@ namespace visita_booking_api.Controllers
                     Address = a.Address,
                     EmailAddress = a.EmailAddress,
                     ContactNo = a.ContactNo,
+                    CheckInTime = a.CheckInTime,
+                    CheckOutTime = a.CheckOutTime,
                     IsActive = a.IsActive,
                     Status = a.Status.ToString(),
                     ActiveRoomCount = a.Rooms.Count(r => r.IsActive),
@@ -85,6 +87,8 @@ namespace visita_booking_api.Controllers
                 Address = accommodation.Address,
                 EmailAddress = accommodation.EmailAddress,
                 ContactNo = accommodation.ContactNo,
+                CheckInTime = accommodation.CheckInTime,
+                CheckOutTime = accommodation.CheckOutTime,
                 IsActive = accommodation.IsActive,
                 Status = accommodation.Status.ToString(),
                 ApprovedAt = accommodation.ApprovedAt,
@@ -153,6 +157,8 @@ namespace visita_booking_api.Controllers
                     Address = a.Address,
                     EmailAddress = a.EmailAddress,
                     ContactNo = a.ContactNo,
+                    CheckInTime = a.CheckInTime,
+                    CheckOutTime = a.CheckOutTime,
                     IsActive = a.IsActive,
                     Status = a.Status.ToString(),
                     CreatedAt = a.CreatedAt,
@@ -232,6 +238,8 @@ namespace visita_booking_api.Controllers
                 Address = request.Address,
                 EmailAddress = request.EmailAddress,
                 ContactNo = request.ContactNo,
+                CheckInTime = request.CheckInTime,
+                CheckOutTime = request.CheckOutTime,
                 OwnerId = currentUserId.Value,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
@@ -262,6 +270,8 @@ namespace visita_booking_api.Controllers
                 Address = accommodation.Address,
                 EmailAddress = accommodation.EmailAddress,
                 ContactNo = accommodation.ContactNo,
+                CheckInTime = accommodation.CheckInTime,
+                CheckOutTime = accommodation.CheckOutTime,
                 IsActive = accommodation.IsActive,
                 CreatedAt = accommodation.CreatedAt,
                 UpdatedAt = accommodation.UpdatedAt,
@@ -432,6 +442,8 @@ namespace visita_booking_api.Controllers
             accommodation.Address = request.Address;
             accommodation.EmailAddress = request.EmailAddress;
             accommodation.ContactNo = request.ContactNo;
+            accommodation.CheckInTime = request.CheckInTime;
+            accommodation.CheckOutTime = request.CheckOutTime;
 
             // Only admins may change BTC membership flag
             if (request.IsBtcMember.HasValue)
@@ -456,6 +468,8 @@ namespace visita_booking_api.Controllers
                 Address = accommodation.Address,
                 EmailAddress = accommodation.EmailAddress,
                 ContactNo = accommodation.ContactNo,
+                CheckInTime = accommodation.CheckInTime,
+                CheckOutTime = accommodation.CheckOutTime,
                 IsActive = accommodation.IsActive,
                 CreatedAt = accommodation.CreatedAt,
                 UpdatedAt = accommodation.UpdatedAt,
