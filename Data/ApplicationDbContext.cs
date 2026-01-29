@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using visita_booking_api.Models.Entities;
+using visita_booking_api.Models.Enums;
 using VisitaBookingApi.Models;
 
 namespace VisitaBookingApi.Data
@@ -26,6 +27,10 @@ namespace VisitaBookingApi.Data
         public DbSet<Establishment> Establishments { get; set; }
         public DbSet<EstablishmentComment> EstablishmentComments { get; set; }
         public DbSet<EstablishmentHours> EstablishmentHours { get; set; }
+        public DbSet<EstablishmentCategoryEntity> EstablishmentCategories { get; set; }
+        public DbSet<EstablishmentSubcategory> EstablishmentSubcategories { get; set; }
+        public DbSet<EstablishmentImage> EstablishmentImages { get; set; }
+        public DbSet<EstablishmentMenuItem> EstablishmentMenuItems { get; set; }
 
         // Room management entities
         public DbSet<Room> Rooms { get; set; }
@@ -745,6 +750,86 @@ namespace VisitaBookingApi.Data
                     .WithMany()
                     .HasForeignKey(rp => rp.CreatedBy)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+            // EstablishmentCategory configuration
+            modelBuilder.Entity<EstablishmentCategoryEntity>(entity =>
+            {
+                entity.HasKey(ec => ec.Id);
+                entity.Property(ec => ec.Name).IsRequired().HasMaxLength(50);
+                entity.Property(ec => ec.Description).HasMaxLength(500);
+                entity.Property(ec => ec.Icon).HasMaxLength(100);
+                entity.HasIndex(ec => ec.Name).IsUnique();
+                entity.HasIndex(ec => ec.IsActive);
+            });
+
+            // EstablishmentSubcategory configuration
+            modelBuilder.Entity<EstablishmentSubcategory>(entity =>
+            {
+                entity.HasKey(es => es.Id);
+                entity.Property(es => es.Name).IsRequired().HasMaxLength(50);
+                entity.Property(es => es.Description).HasMaxLength(500);
+                entity.HasIndex(es => es.CategoryId);
+                entity.HasIndex(es => es.IsActive);
+
+                entity
+                    .HasOne(es => es.Category)
+                    .WithMany(ec => ec.Subcategories)
+                    .HasForeignKey(es => es.CategoryId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // Establishment-Subcategory many-to-many relationship
+            modelBuilder
+                .Entity<Establishment>()
+                .HasMany(e => e.Subcategories)
+                .WithMany()
+                .UsingEntity<Dictionary<string, object>>(
+                    "EstablishmentSubcategoryLinks",
+                    j =>
+                        j.HasOne<EstablishmentSubcategory>()
+                            .WithMany()
+                            .HasForeignKey("SubcategoryId")
+                            .OnDelete(DeleteBehavior.Cascade),
+                    j =>
+                        j.HasOne<Establishment>()
+                            .WithMany()
+                            .HasForeignKey("EstablishmentId")
+                            .OnDelete(DeleteBehavior.Cascade)
+                );
+
+            // EstablishmentImage configuration
+            modelBuilder.Entity<EstablishmentImage>(entity =>
+            {
+                entity.HasKey(ei => ei.Id);
+                entity.Property(ei => ei.ImageUrl).IsRequired().HasMaxLength(500);
+                entity.Property(ei => ei.S3Key).IsRequired().HasMaxLength(500);
+                entity.Property(ei => ei.Caption).HasMaxLength(255);
+                entity.HasIndex(ei => new { ei.EstablishmentId, ei.DisplayOrder });
+
+                entity
+                    .HasOne(ei => ei.Establishment)
+                    .WithMany(e => e.Images)
+                    .HasForeignKey(ei => ei.EstablishmentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // EstablishmentMenuItem configuration
+            modelBuilder.Entity<EstablishmentMenuItem>(entity =>
+            {
+                entity.HasKey(em => em.Id);
+                entity.Property(em => em.Name).IsRequired().HasMaxLength(255);
+                entity.Property(em => em.Description).HasMaxLength(1000);
+                entity.Property(em => em.Price).HasPrecision(10, 2);
+                entity.Property(em => em.Category).HasMaxLength(100);
+                entity.Property(em => em.ImageUrl).HasMaxLength(500);
+                entity.HasIndex(em => em.EstablishmentId);
+                entity.HasIndex(em => em.Category);
+
+                entity
+                    .HasOne(em => em.Establishment)
+                    .WithMany(e => e.MenuItems)
+                    .HasForeignKey(em => em.EstablishmentId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             // RefundPolicyTier entity configuration

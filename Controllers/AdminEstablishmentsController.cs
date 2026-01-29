@@ -1,385 +1,133 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using visita_booking_api.Models.Entities;
-using visita_booking_api.Services.Interfaces;
-using VisitaBookingApi.Data;
+using VisitaBookingAPI.DTOs;
+using VisitaBookingAPI.Services.Interfaces;
 
-namespace visita_booking_api.Controllers
+namespace VisitaBookingAPI.Controllers
 {
     [ApiController]
     [Route("api/admin/establishments")]
     [Authorize(Roles = "Admin")]
     public class AdminEstablishmentsController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
-        private readonly IS3FileService _s3FileService;
+        private readonly IEstablishmentService _establishmentService;
 
-        public AdminEstablishmentsController(
-            ApplicationDbContext context,
-            IS3FileService s3FileService
-        )
+        public AdminEstablishmentsController(IEstablishmentService establishmentService)
         {
-            _context = context;
-            _s3FileService = s3FileService;
+            _establishmentService = establishmentService;
         }
 
-        /// <summary>
-        /// Admin: List all establishments with filters and pagination
-        /// </summary>
+        [HttpGet("pending")]
+        public async Task<ActionResult<List<AdminEstablishmentListDto>>> GetPendingEstablishments()
+        {
+            var establishments = await _establishmentService.GetPendingEstablishmentsAsync();
+            return Ok(establishments);
+        }
+
         [HttpGet]
-        public async Task<IActionResult> List(
-            [FromQuery] string? name,
-            [FromQuery] string? status,
-            [FromQuery] string? category,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 20
+        public async Task<ActionResult<List<AdminEstablishmentListDto>>> GetAllEstablishments(
+            [FromQuery] string? status = null,
+            [FromQuery] string? category = null
         )
         {
-            if (page < 1)
-                page = 1;
-            if (pageSize < 1 || pageSize > 100)
-                pageSize = 20;
-
-            var query = _context.Establishments.Include(e => e.Owner).AsQueryable();
-
-            // Filter by name
-            if (!string.IsNullOrEmpty(name))
-                query = query.Where(e => e.Name.Contains(name));
-
-            // Filter by status
-            if (!string.IsNullOrEmpty(status))
-            {
-                if (
-                    Enum.TryParse(
-                        typeof(Models.Enums.EstablishmentStatus),
-                        status,
-                        true,
-                        out var parsed
-                    )
-                )
-                {
-                    var enumVal = (Models.Enums.EstablishmentStatus)parsed!;
-                    query = query.Where(e => e.Status == enumVal);
-                }
-                else
-                {
-                    return BadRequest(new { success = false, message = "Invalid status value" });
-                }
-            }
-
-            // Filter by category
-            if (!string.IsNullOrEmpty(category))
-            {
-                if (
-                    Enum.TryParse(
-                        typeof(Models.Enums.EstablishmentCategory),
-                        category,
-                        true,
-                        out var parsed
-                    )
-                )
-                {
-                    var enumVal = (Models.Enums.EstablishmentCategory)parsed!;
-                    query = query.Where(e => e.Category == enumVal);
-                }
-                else
-                {
-                    return BadRequest(new { success = false, message = "Invalid category value" });
-                }
-            }
-
-            var totalCount = await query.CountAsync();
-
-            var items = await query
-                .OrderByDescending(e => e.CreatedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .Select(e => new
-                {
-                    e.Id,
-                    e.Name,
-                    e.Description,
-                    e.Logo,
-                    Category = e.Category.ToString(),
-                    e.IsActive,
-                    Status = e.Status.ToString(),
-                    OwnerName = e.Owner.FullName,
-                    OwnerEmail = e.Owner.Email,
-                    CommentCount = _context.EstablishmentComments.Count(c =>
-                        c.EstablishmentId == e.Id
-                    ),
-                    e.CreatedAt,
-                })
-                .ToListAsync();
-
-            return Ok(
-                new
-                {
-                    success = true,
-                    data = items,
-                    pagination = new
-                    {
-                        total = totalCount,
-                        page,
-                        pageSize,
-                        totalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
-                    },
-                }
+            var establishments = await _establishmentService.GetAllEstablishmentsAsync(
+                status,
+                category
             );
+            return Ok(establishments);
         }
 
-        /// <summary>
-        /// Admin: Get establishment details (with presigned business permit URL)
-        /// </summary>
         [HttpGet("{id}")]
-        public async Task<IActionResult> Get(int id)
+        public async Task<ActionResult<EstablishmentDetailDto>> GetEstablishment(int id)
         {
-            var establishment = await _context
-                .Establishments.Include(e => e.Owner)
-                .Include(e => e.Hours)
-                .FirstOrDefaultAsync(e => e.Id == id);
-
+            var establishment = await _establishmentService.GetEstablishmentByIdAsync(id);
             if (establishment == null)
-                return NotFound(new { success = false, message = "Establishment not found" });
-
-            var response = new
             {
-                establishment.Id,
-                establishment.Name,
-                establishment.Description,
-                establishment.Logo,
-                establishment.CoverImage,
-                Category = establishment.Category.ToString(),
-                establishment.Address,
-                establishment.City,
-                establishment.Latitude,
-                establishment.Longitude,
-                establishment.ContactNumber,
-                establishment.Email,
-                establishment.Website,
-                establishment.FacebookPage,
-                Status = establishment.Status.ToString(),
-                establishment.IsActive,
-                establishment.ApprovedAt,
-                establishment.ApprovedById,
-                establishment.RejectionReason,
-                establishment.CreatedAt,
-                establishment.UpdatedAt,
-                establishment.OwnerId,
-                OwnerName = establishment.Owner.FullName,
-                OwnerEmail = establishment.Owner.Email,
-                Hours = establishment.Hours?.Select(h => new
-                {
-                    h.Id,
-                    DayOfWeek = h.DayOfWeek.ToString(),
-                    OpenTime = h.OpenTime?.ToString(@"hh\:mm"),
-                    CloseTime = h.CloseTime?.ToString(@"hh\:mm"),
-                    h.IsClosed,
-                }),
-            };
-
-            // Get presigned URL for business permit
-            string? businessPermitUrl = null;
-            if (!string.IsNullOrEmpty(establishment.BusinessPermitS3Key))
-            {
-                businessPermitUrl = await _s3FileService.GetPresignedUrlAsync(
-                    establishment.BusinessPermitS3Key,
-                    TimeSpan.FromMinutes(15)
-                );
+                return NotFound(new { message = "Establishment not found" });
             }
-
-            return Ok(
-                new
-                {
-                    success = true,
-                    data = response,
-                    businessPermitUrl,
-                }
-            );
+            return Ok(establishment);
         }
 
-        /// <summary>
-        /// Admin: Approve establishment
-        /// </summary>
         [HttpPost("{id}/approve")]
-        public async Task<IActionResult> Approve(int id)
+        public async Task<ActionResult> ApproveEstablishment(int id)
         {
-            var establishment = await _context.Establishments.FirstOrDefaultAsync(e => e.Id == id);
-            if (establishment == null)
-                return NotFound(new { success = false, message = "Establishment not found" });
-
             var adminId = GetCurrentUserId();
-            if (!adminId.HasValue)
-                return Forbid();
-
-            establishment.Approve(adminId.Value);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, message = "Establishment approved successfully" });
+            var success = await _establishmentService.ApproveEstablishmentAsync(id, adminId);
+            if (!success)
+            {
+                return NotFound(new { message = "Establishment not found" });
+            }
+            return Ok(new { message = "Establishment approved successfully" });
         }
 
-        /// <summary>
-        /// Admin: Reject establishment
-        /// </summary>
         [HttpPost("{id}/reject")]
-        public async Task<IActionResult> Reject(
+        public async Task<ActionResult> RejectEstablishment(
             int id,
-            [FromBody] RejectEstablishmentRequest request
+            [FromBody] RejectEstablishmentDto dto
         )
         {
-            var establishment = await _context.Establishments.FirstOrDefaultAsync(e => e.Id == id);
-            if (establishment == null)
-                return NotFound(new { success = false, message = "Establishment not found" });
-
-            establishment.Reject(request.Reason ?? "No reason provided");
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, message = "Establishment rejected" });
-        }
-
-        /// <summary>
-        /// Admin: Set establishment to pending status
-        /// </summary>
-        [HttpPost("{id}/set-pending")]
-        public async Task<IActionResult> SetPending(int id, [FromBody] SetPendingRequest? request)
-        {
-            var establishment = await _context.Establishments.FirstOrDefaultAsync(e => e.Id == id);
-            if (establishment == null)
-                return NotFound(new { success = false, message = "Establishment not found" });
-
-            var adminId = GetCurrentUserId();
-            if (!adminId.HasValue)
-                return Forbid();
-
-            // Set status to pending
-            establishment.Status = Models.Enums.EstablishmentStatus.Pending;
-            establishment.UpdateTimestamp();
-
-            // Add comment if provided
-            if (!string.IsNullOrWhiteSpace(request?.Comment))
+            if (string.IsNullOrWhiteSpace(dto.RejectionReason))
             {
-                var comment = new EstablishmentComment
-                {
-                    EstablishmentId = id,
-                    AdminId = adminId.Value,
-                    Comment = request.Comment,
-                    CreatedAt = DateTime.UtcNow,
-                };
-                _context.EstablishmentComments.Add(comment);
+                return BadRequest(new { message = "Rejection reason is required" });
             }
 
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, message = "Establishment set to pending" });
+            var adminId = GetCurrentUserId();
+            var success = await _establishmentService.RejectEstablishmentAsync(
+                id,
+                adminId,
+                dto.RejectionReason
+            );
+            if (!success)
+            {
+                return NotFound(new { message = "Establishment not found" });
+            }
+            return Ok(new { message = "Establishment rejected", reason = dto.RejectionReason });
         }
 
-        /// <summary>
-        /// Admin: Add internal comment/note
-        /// </summary>
-        [HttpPost("{id}/comments")]
-        public async Task<IActionResult> AddComment(int id, [FromBody] AddCommentRequest request)
+        [HttpGet("{id}/business-permit")]
+        public async Task<ActionResult> GetBusinessPermit(int id)
         {
-            if (string.IsNullOrWhiteSpace(request.Comment))
-                return BadRequest(new { success = false, message = "Comment cannot be empty" });
-
-            var establishment = await _context.Establishments.FirstOrDefaultAsync(e => e.Id == id);
-            if (establishment == null)
-                return NotFound(new { success = false, message = "Establishment not found" });
-
-            var adminId = GetCurrentUserId();
-            if (!adminId.HasValue)
-                return Forbid();
-
-            var comment = new EstablishmentComment
+            var url = await _establishmentService.GetBusinessPermitDownloadUrlAsync(id);
+            if (url == null)
             {
-                EstablishmentId = id,
-                AdminId = adminId.Value,
-                Comment = request.Comment,
-                CreatedAt = DateTime.UtcNow,
+                return NotFound(new { message = "Business permit not found" });
+            }
+            return Ok(new { url });
+        }
+
+        [HttpGet("statistics")]
+        public async Task<ActionResult> GetStatistics()
+        {
+            var pending = await _establishmentService.GetPendingEstablishmentsAsync();
+            var all = await _establishmentService.GetAllEstablishmentsAsync(null, null);
+
+            var stats = new
+            {
+                totalEstablishments = all.Count,
+                pendingApprovals = pending.Count,
+                approved = all.Count(e => e.Status == "Approved"),
+                rejected = all.Count(e => e.Status == "Rejected"),
+                byCategory = all.GroupBy(e => e.Category)
+                    .Select(g => new { category = g.Key, count = g.Count() })
+                    .ToList(),
             };
 
-            _context.EstablishmentComments.Add(comment);
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, message = "Comment added successfully" });
+            return Ok(stats);
         }
 
-        /// <summary>
-        /// Admin: Get all internal comments for establishment
-        /// </summary>
-        [HttpGet("{id}/comments")]
-        public async Task<IActionResult> GetComments(int id)
+        private int GetCurrentUserId()
         {
-            var establishment = await _context.Establishments.FirstOrDefaultAsync(e => e.Id == id);
-            if (establishment == null)
-                return NotFound(new { success = false, message = "Establishment not found" });
-
-            var comments = await _context
-                .EstablishmentComments.Include(c => c.Admin)
-                .Where(c => c.EstablishmentId == id)
-                .OrderByDescending(c => c.CreatedAt)
-                .Select(c => new
-                {
-                    c.Id,
-                    c.EstablishmentId,
-                    c.AdminId,
-                    AdminName = c.Admin.FullName ?? c.Admin.Email,
-                    c.Comment,
-                    c.CreatedAt,
-                })
-                .ToListAsync();
-
-            return Ok(new { success = true, data = comments });
-        }
-
-        /// <summary>
-        /// Admin: Delete establishment (soft delete)
-        /// </summary>
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
-        {
-            var establishment = await _context.Establishments.FirstOrDefaultAsync(e => e.Id == id);
-            if (establishment == null)
-                return NotFound(new { success = false, message = "Establishment not found" });
-
-            // Delete logo if exists
-            if (!string.IsNullOrEmpty(establishment.Logo))
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim))
             {
-                var key = _s3FileService.ExtractS3KeyFromUrl(establishment.Logo);
-                if (!string.IsNullOrEmpty(key))
-                    await _s3FileService.DeleteFileAsync(key);
+                throw new UnauthorizedAccessException("User not authenticated");
             }
-
-            establishment.IsActive = false;
-            establishment.UpdateTimestamp();
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        private int? GetCurrentUserId()
-        {
-            var userIdClaim = User.FindFirst(
-                System.Security.Claims.ClaimTypes.NameIdentifier
-            )?.Value;
-            return int.TryParse(userIdClaim, out var userId) ? userId : null;
-        }
-
-        // Request DTOs
-        public class RejectEstablishmentRequest
-        {
-            public string? Reason { get; set; }
-        }
-
-        public class SetPendingRequest
-        {
-            public string? Comment { get; set; }
-        }
-
-        public class AddCommentRequest
-        {
-            public string Comment { get; set; } = string.Empty;
+            return int.Parse(userIdClaim);
         }
     }
 }

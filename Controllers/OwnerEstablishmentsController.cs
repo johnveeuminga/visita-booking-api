@@ -1,349 +1,299 @@
+using System;
+using System.Collections.Generic;
 using System.Security.Claims;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using visita_booking_api.Models.Entities;
-using visita_booking_api.Models.Enums;
-using visita_booking_api.Services.Interfaces;
-using VisitaBookingApi.Data;
+using VisitaBookingAPI.DTOs;
+using VisitaBookingAPI.Services.Interfaces;
 
-namespace visita_booking_api.Controllers
+namespace VisitaBookingAPI.Controllers
 {
     [ApiController]
     [Route("api/owner/establishments")]
-    [Authorize(Roles = "Hotel")]
+    [Authorize]
     public class OwnerEstablishmentsController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
-        private readonly IS3FileService _s3FileService;
+        private readonly IEstablishmentService _establishmentService;
 
-        public OwnerEstablishmentsController(
-            ApplicationDbContext context,
-            IS3FileService s3FileService
-        )
+        public OwnerEstablishmentsController(IEstablishmentService establishmentService)
         {
-            _context = context;
-            _s3FileService = s3FileService;
+            _establishmentService = establishmentService;
         }
 
-        /// <summary>
-        /// Owner: Get all my establishments
-        /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetMyEstablishments()
+        public async Task<ActionResult<List<EstablishmentListDto>>> GetMyEstablishments()
         {
-            var ownerId = GetCurrentUserId();
-            if (!ownerId.HasValue)
-                return Unauthorized();
-
-            var establishments = await _context
-                .Establishments.Where(e => e.OwnerId == ownerId.Value)
-                .OrderByDescending(e => e.CreatedAt)
-                .Select(e => new
-                {
-                    e.Id,
-                    e.Name,
-                    e.Description,
-                    e.Logo,
-                    Category = e.Category.ToString(),
-                    Status = e.Status.ToString(),
-                    e.IsActive,
-                    e.RejectionReason,
-                    e.CreatedAt,
-                    e.UpdatedAt,
-                })
-                .ToListAsync();
-
-            return Ok(new { success = true, data = establishments });
+            var userId = GetCurrentUserId();
+            var establishments = await _establishmentService.GetMyEstablishmentsAsync(userId);
+            return Ok(establishments);
         }
 
-        /// <summary>
-        /// Owner: Get single establishment details
-        /// </summary>
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetEstablishment(int id)
+        public async Task<ActionResult<EstablishmentDetailDto>> GetEstablishment(int id)
         {
-            var ownerId = GetCurrentUserId();
-            if (!ownerId.HasValue)
-                return Unauthorized();
-
-            var establishment = await _context
-                .Establishments.Include(e => e.Hours)
-                .Where(e => e.Id == id && e.OwnerId == ownerId.Value)
-                .FirstOrDefaultAsync();
-
-            if (establishment == null)
-                return NotFound(new { success = false, message = "Establishment not found" });
-
-            var response = new
+            var userId = GetCurrentUserId();
+            var establishment = await _establishmentService.GetEstablishmentByIdAsync(id);
+            if (establishment == null || establishment.Owner.Id != userId)
             {
-                establishment.Id,
-                establishment.Name,
-                establishment.Description,
-                establishment.Logo,
-                establishment.CoverImage,
-                Category = establishment.Category.ToString(),
-                establishment.Address,
-                establishment.City,
-                establishment.Latitude,
-                establishment.Longitude,
-                establishment.ContactNumber,
-                establishment.Email,
-                establishment.Website,
-                establishment.FacebookPage,
-                Status = establishment.Status.ToString(),
-                establishment.IsActive,
-                establishment.RejectionReason,
-                establishment.CreatedAt,
-                establishment.UpdatedAt,
-                Hours = establishment.Hours?.Select(h => new
-                {
-                    h.Id,
-                    DayOfWeek = h.DayOfWeek.ToString(),
-                    OpenTime = h.OpenTime?.ToString(@"hh\:mm"),
-                    CloseTime = h.CloseTime?.ToString(@"hh\:mm"),
-                    h.IsClosed,
-                }),
-            };
-
-            // Get presigned URL for business permit if exists
-            string? businessPermitUrl = null;
-            if (!string.IsNullOrEmpty(establishment.BusinessPermitS3Key))
-            {
-                businessPermitUrl = await _s3FileService.GetPresignedUrlAsync(
-                    establishment.BusinessPermitS3Key,
-                    TimeSpan.FromMinutes(15)
-                );
+                return NotFound(new { message = "Establishment not found or access denied" });
             }
-
-            return Ok(
-                new
-                {
-                    success = true,
-                    data = response,
-                    businessPermitUrl,
-                }
-            );
+            return Ok(establishment);
         }
 
-        /// <summary>
-        /// Owner: Create new establishment
-        /// </summary>
         [HttpPost]
-        public async Task<IActionResult> Create([FromForm] CreateEstablishmentRequest request)
-        {
-            var ownerId = GetCurrentUserId();
-            if (!ownerId.HasValue)
-                return Unauthorized();
-
-            // Validate category
-            if (!Enum.TryParse<EstablishmentCategory>(request.Category, true, out var category))
-                return BadRequest(new { success = false, message = "Invalid category" });
-
-            var establishment = new Establishment
-            {
-                Name = request.Name,
-                Description = request.Description,
-                Category = category,
-                Address = request.Address,
-                City = request.City ?? "Baguio",
-                Latitude = request.Latitude,
-                Longitude = request.Longitude,
-                ContactNumber = request.ContactNumber,
-                Email = request.Email,
-                Website = request.Website,
-                FacebookPage = request.FacebookPage,
-                OwnerId = ownerId.Value,
-                Status = EstablishmentStatus.Pending,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-            };
-            // Upload logo if provided
-            if (request.Logo != null)
-            {
-                var uploadResult = await _s3FileService.UploadFileAsync(
-                    request.Logo,
-                    "establishment-logos"
-                );
-                if (!uploadResult.Success)
-                {
-                    return BadRequest(
-                        new
-                        {
-                            success = false,
-                            message = $"Logo upload failed: {uploadResult.Error}",
-                        }
-                    );
-                }
-                establishment.Logo = uploadResult.FileUrl;
-            }
-            // Upload business permit
-            if (request.BusinessPermit != null)
-            {
-                var uploadResult = await _s3FileService.UploadPrivateFileAsync(
-                    request.BusinessPermit,
-                    $"establishments/{ownerId.Value}/permits"
-                );
-                if (!uploadResult.Success)
-                {
-                    return BadRequest(
-                        new
-                        {
-                            success = false,
-                            message = $"Business permit upload failed: {uploadResult.Error}",
-                        }
-                    );
-                }
-                establishment.BusinessPermitS3Key = uploadResult.S3Key;
-            }
-
-            _context.Establishments.Add(establishment);
-            await _context.SaveChangesAsync();
-
-            return Ok(
-                new
-                {
-                    success = true,
-                    message = "Establishment created and pending admin approval",
-                    data = new
-                    {
-                        establishment.Id,
-                        establishment.Name,
-                        Status = establishment.Status.ToString(),
-                    },
-                }
-            );
-        }
-
-        /// <summary>
-        /// Owner: Update establishment
-        /// </summary>
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(
-            int id,
-            [FromForm] UpdateEstablishmentRequest request
+        public async Task<ActionResult<EstablishmentDetailDto>> CreateEstablishment(
+            [FromBody] CreateEstablishmentDto dto
         )
         {
-            var ownerId = GetCurrentUserId();
-            if (!ownerId.HasValue)
-                return Unauthorized();
-
-            var establishment = await _context.Establishments.FirstOrDefaultAsync(e =>
-                e.Id == id && e.OwnerId == ownerId.Value
-            );
-
-            if (establishment == null)
-                return NotFound(new { success = false, message = "Establishment not found" });
-
-            // Update basic info
-            if (!string.IsNullOrEmpty(request.Name))
-                establishment.Name = request.Name;
-            if (request.Description != null)
-                establishment.Description = request.Description;
-            if (!string.IsNullOrEmpty(request.Address))
-                establishment.Address = request.Address;
-            if (!string.IsNullOrEmpty(request.City))
-                establishment.City = request.City;
-            if (request.Latitude.HasValue)
-                establishment.Latitude = request.Latitude;
-            if (request.Longitude.HasValue)
-                establishment.Longitude = request.Longitude;
-            if (request.ContactNumber != null)
-                establishment.ContactNumber = request.ContactNumber;
-            if (request.Email != null)
-                establishment.Email = request.Email;
-            if (request.Website != null)
-                establishment.Website = request.Website;
-            if (request.FacebookPage != null)
-                establishment.FacebookPage = request.FacebookPage;
-
-            // Upload logo if provided
-            if (request.Logo != null)
+            try
             {
-                var uploadResult = await _s3FileService.UploadFileAsync(
-                    request.Logo,
-                    "establishment-logos"
+                var userId = GetCurrentUserId();
+                var establishment = await _establishmentService.CreateEstablishmentAsync(
+                    userId,
+                    dto
                 );
-                if (!uploadResult.Success)
-                {
-                    return BadRequest(
-                        new
-                        {
-                            success = false,
-                            message = $"Logo upload failed: {uploadResult.Error}",
-                        }
-                    );
-                }
-                establishment.Logo = uploadResult.FileUrl;
+                return CreatedAtAction(
+                    nameof(GetEstablishment),
+                    new { id = establishment.Id },
+                    establishment
+                );
             }
-            establishment.UpdateTimestamp();
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, message = "Establishment updated successfully" });
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { message = ex.Message });
+            }
         }
 
-        /// <summary>
-        /// Owner: Delete (deactivate) establishment
-        /// </summary>
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
+        [HttpPut("{id}")]
+        public async Task<ActionResult<EstablishmentDetailDto>> UpdateEstablishment(
+            int id,
+            [FromBody] UpdateEstablishmentDto dto
+        )
         {
-            var ownerId = GetCurrentUserId();
-            if (!ownerId.HasValue)
-                return Unauthorized();
-
-            var establishment = await _context.Establishments.FirstOrDefaultAsync(e =>
-                e.Id == id && e.OwnerId == ownerId.Value
-            );
-
-            if (establishment == null)
-                return NotFound(new { success = false, message = "Establishment not found" });
-
-            establishment.IsActive = false;
-            establishment.UpdateTimestamp();
-            await _context.SaveChangesAsync();
-
-            return Ok(new { success = true, message = "Establishment deactivated" });
+            try
+            {
+                var userId = GetCurrentUserId();
+                var establishment = await _establishmentService.UpdateEstablishmentAsync(
+                    id,
+                    userId,
+                    dto
+                );
+                return Ok(establishment);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
         }
 
-        private int? GetCurrentUserId()
+        [HttpDelete("{id}")]
+        public async Task<ActionResult> DeleteEstablishment(int id)
+        {
+            var userId = GetCurrentUserId();
+            var success = await _establishmentService.DeleteEstablishmentAsync(id, userId);
+            if (!success)
+            {
+                return NotFound(new { message = "Establishment not found or access denied" });
+            }
+            return NoContent();
+        }
+
+        [HttpPost("{id}/business-permit")]
+        public async Task<ActionResult> UploadBusinessPermit(int id, IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(new { message = "File is required" });
+            }
+
+            try
+            {
+                var userId = GetCurrentUserId();
+                var url = await _establishmentService.UploadBusinessPermitAsync(id, userId, file);
+                return Ok(new { url, message = "Business permit uploaded successfully" });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("{id}/logo")]
+        public async Task<ActionResult> UploadLogo(int id, IFormFile file)
+        {
+            if (file == null || file.Length == 0 || !file.ContentType.StartsWith("image/"))
+            {
+                return BadRequest(new { message = "Valid image file is required" });
+            }
+
+            try
+            {
+                var userId = GetCurrentUserId();
+                var url = await _establishmentService.UploadLogoAsync(id, userId, file);
+                return Ok(new { url, message = "Logo uploaded successfully" });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("{id}/cover")]
+        public async Task<ActionResult> UploadCoverImage(int id, IFormFile file)
+        {
+            if (file == null || file.Length == 0 || !file.ContentType.StartsWith("image/"))
+            {
+                return BadRequest(new { message = "Valid image file is required" });
+            }
+
+            try
+            {
+                var userId = GetCurrentUserId();
+                var url = await _establishmentService.UploadCoverImageAsync(id, userId, file);
+                return Ok(new { url, message = "Cover image uploaded successfully" });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        [HttpPost("{id}/images")]
+        public async Task<ActionResult<EstablishmentImageDto>> AddImage(
+            int id,
+            IFormFile file,
+            [FromForm] string? caption = null,
+            [FromForm] int displayOrder = 0
+        )
+        {
+            if (file == null || file.Length == 0 || !file.ContentType.StartsWith("image/"))
+            {
+                return BadRequest(new { message = "Valid image file is required" });
+            }
+
+            try
+            {
+                var userId = GetCurrentUserId();
+                var image = await _establishmentService.AddEstablishmentImageAsync(
+                    id,
+                    userId,
+                    file,
+                    caption,
+                    displayOrder
+                );
+                return Ok(image);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("{id}/images/{imageId}")]
+        public async Task<ActionResult> DeleteImage(int id, int imageId)
+        {
+            var userId = GetCurrentUserId();
+            var success = await _establishmentService.DeleteEstablishmentImageAsync(
+                id,
+                imageId,
+                userId
+            );
+            if (!success)
+            {
+                return NotFound(new { message = "Image not found or access denied" });
+            }
+            return NoContent();
+        }
+
+        [HttpPost("{id}/menu-items")]
+        public async Task<ActionResult<EstablishmentMenuItemDto>> AddMenuItem(
+            int id,
+            [FromBody] CreateMenuItemDto dto
+        )
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var menuItem = await _establishmentService.AddMenuItemAsync(id, userId, dto);
+                return CreatedAtAction(nameof(GetEstablishment), new { id }, menuItem);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        [HttpPut("{id}/menu-items/{menuItemId}")]
+        public async Task<ActionResult<EstablishmentMenuItemDto>> UpdateMenuItem(
+            int id,
+            int menuItemId,
+            [FromBody] UpdateMenuItemDto dto
+        )
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var menuItem = await _establishmentService.UpdateMenuItemAsync(
+                    id,
+                    menuItemId,
+                    userId,
+                    dto
+                );
+                return Ok(menuItem);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        [HttpDelete("{id}/menu-items/{menuItemId}")]
+        public async Task<ActionResult> DeleteMenuItem(int id, int menuItemId)
+        {
+            var userId = GetCurrentUserId();
+            var success = await _establishmentService.DeleteMenuItemAsync(id, menuItemId, userId);
+            if (!success)
+            {
+                return NotFound(new { message = "Menu item not found or access denied" });
+            }
+            return NoContent();
+        }
+
+        [HttpPost("{id}/menu-items/{menuItemId}/image")]
+        public async Task<ActionResult> UploadMenuItemImage(int id, int menuItemId, IFormFile file)
+        {
+            if (file == null || file.Length == 0 || !file.ContentType.StartsWith("image/"))
+            {
+                return BadRequest(new { message = "Valid image file is required" });
+            }
+
+            try
+            {
+                var userId = GetCurrentUserId();
+                var url = await _establishmentService.UploadMenuItemImageAsync(
+                    id,
+                    menuItemId,
+                    userId,
+                    file
+                );
+                return Ok(new { url, message = "Menu item image uploaded successfully" });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+        }
+
+        private int GetCurrentUserId()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            return int.TryParse(userIdClaim, out var userId) ? userId : null;
+            if (string.IsNullOrEmpty(userIdClaim))
+            {
+                throw new UnauthorizedAccessException("User not authenticated");
+            }
+            return int.Parse(userIdClaim);
         }
-    }
-
-    // Request DTOs
-    public class CreateEstablishmentRequest
-    {
-        public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
-        public string Category { get; set; } = string.Empty;
-        public string Address { get; set; } = string.Empty;
-        public string? City { get; set; }
-        public decimal? Latitude { get; set; }
-        public decimal? Longitude { get; set; }
-        public string? ContactNumber { get; set; }
-        public string? Email { get; set; }
-        public string? Website { get; set; }
-        public string? FacebookPage { get; set; }
-        public IFormFile? Logo { get; set; }
-        public IFormFile? BusinessPermit { get; set; }
-    }
-
-    public class UpdateEstablishmentRequest
-    {
-        public string? Name { get; set; }
-        public string? Description { get; set; }
-        public string? Address { get; set; }
-        public string? City { get; set; }
-        public decimal? Latitude { get; set; }
-        public decimal? Longitude { get; set; }
-        public string? ContactNumber { get; set; }
-        public string? Email { get; set; }
-        public string? Website { get; set; }
-        public string? FacebookPage { get; set; }
-        public IFormFile? Logo { get; set; }
     }
 }

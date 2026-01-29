@@ -56,6 +56,12 @@ namespace visita_booking_api.Models.Entities
         public ICollection<EstablishmentComment> Comments { get; set; } =
             new List<EstablishmentComment>();
         public ICollection<EstablishmentHours>? Hours { get; set; }
+        public virtual ICollection<EstablishmentImage> Images { get; set; } =
+            new List<EstablishmentImage>();
+        public virtual ICollection<EstablishmentMenuItem> MenuItems { get; set; } =
+            new List<EstablishmentMenuItem>();
+        public virtual ICollection<EstablishmentSubcategory> Subcategories { get; set; } =
+            new List<EstablishmentSubcategory>();
 
         // Methods (similar to Accommodation)
         public void Approve(int adminId)

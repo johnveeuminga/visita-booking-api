@@ -2,7 +2,9 @@ using Amazon;
 using Amazon.S3;
 using visita_booking_api.Services.Implementation;
 using visita_booking_api.Services.Interfaces;
+using VisitaBookingAPI.Services;
 using VisitaBookingApi.Services.Interfaces;
+using VisitaBookingAPI.Services.Interfaces;
 
 namespace visita_booking_api.Services
 {
@@ -29,7 +31,8 @@ namespace visita_booking_api.Services
             services.AddScoped<IEmailService, SendGridEmailService>();
             services.AddScoped<IRefundService, RefundService>();
             services.AddScoped<IBulletinEventService, BulletinEventService>();
-            services.AddScoped<IParkService, ParkService>(); // ← Park service
+            services.AddScoped<IParkService, ParkService>();
+            services.AddScoped<IEstablishmentService, EstablishmentService>();
 
             // Development data seeding service
             services.AddScoped<IDevelopmentDataSeedingService, DevelopmentDataSeedingService>();
