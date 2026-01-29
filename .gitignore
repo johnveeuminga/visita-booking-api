@@ -497,15 +497,13 @@ secrets/
 sql-migrations/
 *.sql
 
-
-# Environment-specific appsettings files (contain sensitive data)
+docs/appsettings.json
 appsettings.Development.json
 appsettings.Production.json
+
 
 # Local environment files
 .env.local
 
 # Main appsettings file (contains sensitive data)
 appsettings.json
-
-docs/
