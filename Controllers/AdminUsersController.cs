@@ -69,6 +69,32 @@ namespace VisitaBookingApi.Controllers
             {
                 return BadRequest(result);
             }
+            
+
+            return Ok(result);
+        }/// <summary>
+        /// Assign Establishment role to a user
+        /// </summary>
+        [HttpPost("users/{userId}/assign-establishment-role")]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status400BadRequest)]
+        public async Task<ActionResult<ApiResponse<bool>>> AssignEstablishmentRole(int userId)
+        {
+            var request = new AssignRoleRequest
+            {
+                UserId = userId,
+                NewRole = "Establishment"
+            };
+
+            var result = await _authService.AssignRoleAsync(request);
+            
+            if (!result.Success)
+            {
+                if (result.Message.Contains("not found"))
+                    return NotFound(result);
+                return BadRequest(result);
+            }
 
             return Ok(result);
         }
