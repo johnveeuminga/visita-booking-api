@@ -68,6 +68,7 @@ namespace visita_booking_api.Models.DTOs
         // Top amenities for this room
         public List<AmenityDTO> TopAmenities { get; set; } = new();
         public int TotalAmenities { get; set; }
+        public List<AmenityDTO> Amenities { get; set; } = new();
 
         // Availability status
         public bool IsAvailable { get; set; }

@@ -1,11 +1,11 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using VisitaBookingApi.Data;
-using visita_booking_api.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using visita_booking_api.Models.DTOs;
 using visita_booking_api.Models.Entities;
+using visita_booking_api.Services.Interfaces;
+using VisitaBookingApi.Data;
 
 namespace visita_booking_api.Controllers
 {
@@ -20,11 +20,12 @@ namespace visita_booking_api.Controllers
         private readonly IBookingService _bookingService;
 
         public RoomsController(
-            IRoomService roomService, 
+            IRoomService roomService,
             ILogger<RoomsController> logger,
             ApplicationDbContext context,
             IS3FileService s3FileService,
-            IBookingService bookingService)
+            IBookingService bookingService
+        )
         {
             _roomService = roomService;
             _logger = logger;
@@ -37,7 +38,9 @@ namespace visita_booking_api.Controllers
         /// Get all rooms
         /// </summary>
         [HttpGet]
-        public async Task<ActionResult<List<RoomListItemDTO>>> GetRooms([FromQuery] bool includeInactive = false)
+        public async Task<ActionResult<List<RoomListItemDTO>>> GetRooms(
+            [FromQuery] bool includeInactive = false
+        )
         {
             try
             {
@@ -56,7 +59,9 @@ namespace visita_booking_api.Controllers
         /// </summary>
         [HttpGet("my")]
         [Authorize]
-        public async Task<ActionResult<List<RoomListItemDTO>>> GetMyRooms([FromQuery] bool includeInactive = false)
+        public async Task<ActionResult<List<RoomListItemDTO>>> GetMyRooms(
+            [FromQuery] bool includeInactive = false
+        )
         {
             try
             {
@@ -69,8 +74,8 @@ namespace visita_booking_api.Controllers
                 // If admin, return all rooms (respect includeInactive flag)
                 if (IsAdmin())
                 {
-                    var allRooms = await _context.Rooms
-                        .Where(r => includeInactive || r.IsActive)
+                    var allRooms = await _context
+                        .Rooms.Where(r => includeInactive || r.IsActive)
                         .Select(r => new RoomListItemDTO
                         {
                             Id = r.Id,
@@ -80,23 +85,47 @@ namespace visita_booking_api.Controllers
                             MaxGuests = r.MaxGuests,
                             IsActive = r.IsActive,
                             UpdatedAt = r.UpdatedAt,
-                            MainPhotoUrl = r.Photos.OrderBy(p => p.DisplayOrder).Select(p => p.CdnUrl ?? p.S3Url).FirstOrDefault(),
+                            MainPhotoUrl = r
+                                .Photos.OrderBy(p => p.DisplayOrder)
+                                .Select(p => p.CdnUrl ?? p.S3Url)
+                                .FirstOrDefault(),
                             PhotoCount = r.Photos.Count(p => p.IsActive),
                             AmenityCount = r.RoomAmenities.Count(),
-                            MainAmenities = r.RoomAmenities.OrderBy(ra => ra.Amenity.DisplayOrder).Select(ra => ra.Amenity.Name).Take(3).ToList(),
-                            Accommodation = r.Accommodation == null ? null : new AccommodationSummaryDto
-                            {
-                                Id = r.Accommodation.Id,
-                                Name = r.Accommodation.Name,
-                                Description = r.Accommodation.Description,
-                                Logo = r.Accommodation.Logo,
-                                Address = r.Accommodation.Address,
-                                EmailAddress = r.Accommodation.EmailAddress,
-                                ContactNo = r.Accommodation.ContactNo,
-                                IsActive = r.Accommodation.IsActive,
-                                Status = r.Accommodation.Status.ToString(),
-                                ActiveRoomCount = r.Accommodation.Rooms.Count(rr => rr.IsActive)
-                            }
+                            MainAmenities = r
+                                .RoomAmenities.OrderBy(ra => ra.Amenity.DisplayOrder)
+                                .Select(ra => ra.Amenity.Name)
+                                .Take(3)
+                                .ToList(),
+                            Amenities = r
+                                .RoomAmenities.Select(ra => new AmenityDTO
+                                {
+                                    Id = ra.Amenity.Id,
+                                    Name = ra.Amenity.Name,
+                                    Description = ra.Amenity.Description,
+                                    Category = ra.Amenity.Category,
+                                    IsActive = ra.Amenity.IsActive,
+                                    LastModified = ra.Amenity.CreatedAt,
+                                    DisplayOrder = ra.Amenity.DisplayOrder,
+                                })
+                                .ToList(),
+                            Accommodation =
+                                r.Accommodation == null
+                                    ? null
+                                    : new AccommodationSummaryDto
+                                    {
+                                        Id = r.Accommodation.Id,
+                                        Name = r.Accommodation.Name,
+                                        Description = r.Accommodation.Description,
+                                        Logo = r.Accommodation.Logo,
+                                        Address = r.Accommodation.Address,
+                                        EmailAddress = r.Accommodation.EmailAddress,
+                                        ContactNo = r.Accommodation.ContactNo,
+                                        IsActive = r.Accommodation.IsActive,
+                                        Status = r.Accommodation.Status.ToString(),
+                                        ActiveRoomCount = r.Accommodation.Rooms.Count(rr =>
+                                            rr.IsActive
+                                        ),
+                                    },
                         })
                         .ToListAsync();
 
@@ -104,8 +133,12 @@ namespace visita_booking_api.Controllers
                 }
 
                 // Normal user: return rooms for accommodations owned by the user
-                var rooms = await _context.Rooms
-                    .Where(r => (includeInactive || r.IsActive) && r.Accommodation != null && r.Accommodation.OwnerId == currentUserId.Value)
+                var rooms = await _context
+                    .Rooms.Where(r =>
+                        (includeInactive || r.IsActive)
+                        && r.Accommodation != null
+                        && r.Accommodation.OwnerId == currentUserId.Value
+                    )
                     .Select(r => new RoomListItemDTO
                     {
                         Id = r.Id,
@@ -115,23 +148,47 @@ namespace visita_booking_api.Controllers
                         MaxGuests = r.MaxGuests,
                         IsActive = r.IsActive,
                         UpdatedAt = r.UpdatedAt,
-                        MainPhotoUrl = r.Photos.OrderBy(p => p.DisplayOrder).Select(p => p.CdnUrl ?? p.S3Url).FirstOrDefault(),
+                        MainPhotoUrl = r
+                            .Photos.OrderBy(p => p.DisplayOrder)
+                            .Select(p => p.CdnUrl ?? p.S3Url)
+                            .FirstOrDefault(),
                         PhotoCount = r.Photos.Count(p => p.IsActive),
                         AmenityCount = r.RoomAmenities.Count(),
-                        MainAmenities = r.RoomAmenities.OrderBy(ra => ra.Amenity.DisplayOrder).Select(ra => ra.Amenity.Name).Take(3).ToList(),
-                        Accommodation = r.Accommodation == null ? null : new AccommodationSummaryDto
-                        {
-                            Id = r.Accommodation.Id,
-                            Name = r.Accommodation.Name,
-                            Description = r.Accommodation.Description,
-                            Logo = r.Accommodation.Logo,
-                            Address = r.Accommodation.Address,
-                            EmailAddress = r.Accommodation.EmailAddress,
-                            ContactNo = r.Accommodation.ContactNo,
-                            IsActive = r.Accommodation.IsActive,
-                            Status = r.Accommodation.Status.ToString(),
-                            ActiveRoomCount = r.Accommodation.Rooms.Count(rr => rr.IsActive)
-                        }
+                        MainAmenities = r
+                            .RoomAmenities.OrderBy(ra => ra.Amenity.DisplayOrder)
+                            .Select(ra => ra.Amenity.Name)
+                            .Take(3)
+                            .ToList(),
+                        Amenities = r
+                            .RoomAmenities.Select(ra => new AmenityDTO
+                            {
+                                Id = ra.Amenity.Id,
+                                Name = ra.Amenity.Name,
+                                Description = ra.Amenity.Description,
+                                Category = ra.Amenity.Category,
+                                IsActive = ra.Amenity.IsActive,
+                                LastModified = ra.Amenity.CreatedAt,
+                                DisplayOrder = ra.Amenity.DisplayOrder,
+                            })
+                            .ToList(),
+                        Accommodation =
+                            r.Accommodation == null
+                                ? null
+                                : new AccommodationSummaryDto
+                                {
+                                    Id = r.Accommodation.Id,
+                                    Name = r.Accommodation.Name,
+                                    Description = r.Accommodation.Description,
+                                    Logo = r.Accommodation.Logo,
+                                    Address = r.Accommodation.Address,
+                                    EmailAddress = r.Accommodation.EmailAddress,
+                                    ContactNo = r.Accommodation.ContactNo,
+                                    IsActive = r.Accommodation.IsActive,
+                                    Status = r.Accommodation.Status.ToString(),
+                                    ActiveRoomCount = r.Accommodation.Rooms.Count(rr =>
+                                        rr.IsActive
+                                    ),
+                                },
                     })
                     .ToListAsync();
 
@@ -158,8 +215,8 @@ namespace visita_booking_api.Controllers
                 }
 
                 // Project directly to DTO to avoid serializing EF navigation graphs
-                var roomDto = await _context.Rooms
-                    .Where(r => r.Id == id && r.IsActive)
+                var roomDto = await _context
+                    .Rooms.Where(r => r.Id == id && r.IsActive)
                     .Select(r => new RoomDetailsDTO
                     {
                         Id = r.Id,
@@ -170,54 +227,71 @@ namespace visita_booking_api.Controllers
                         IsActive = r.IsActive,
                         UpdatedAt = r.UpdatedAt,
                         TotalUnits = r.TotalUnits,
-                        Photos = r.Photos.Where(p => p.IsActive).OrderBy(p => p.DisplayOrder).Select(p => new RoomPhotoDTO
-                        {
-                            Id = p.Id,
-                            FileName = p.FileName,
-                            FileUrl = p.CdnUrl ?? p.S3Url,
-                            LastModified = p.LastModified
-                        }).ToList(),
-                        Amenities = r.RoomAmenities.Select(ra => new AmenityDTO
-                        {
-                            Id = ra.Amenity.Id,
-                            Name = ra.Amenity.Name,
-                            Description = ra.Amenity.Description,
-                            Category = ra.Amenity.Category,
-                            IsActive = ra.Amenity.IsActive,
-                            LastModified = ra.Amenity.CreatedAt,
-                            DisplayOrder = ra.Amenity.DisplayOrder
-                        }).ToList(),
-                        PricingRules = r.PricingRules.Where(pr => pr.IsActive).Select(pr => new RoomPricingRuleDTO
-                        {
-                            Id = pr.Id,
-                            RoomId = pr.RoomId,
-                            RuleType = pr.RuleType.ToString(),
-                            Name = pr.Name,
-                            Description = pr.Description,
-                            DayOfWeek = pr.DayOfWeek,
-                            StartDate = pr.StartDate,
-                            EndDate = pr.EndDate,
-                            FixedPrice = pr.FixedPrice,
-                            IsActive = pr.IsActive,
-                            Priority = pr.Priority,
-                            MinimumNights = pr.MinimumNights,
-                            CreatedAt = pr.CreatedAt,
-                            UpdatedAt = pr.UpdatedAt
-                        }).ToList(),
-                        MainPhotoUrl = r.Photos.OrderBy(p => p.DisplayOrder).Select(p => p.CdnUrl ?? p.S3Url).FirstOrDefault(),
-                        Accommodation = r.Accommodation == null ? null : new AccommodationSummaryDto
-                        {
-                            Id = r.Accommodation.Id,
-                            Name = r.Accommodation.Name,
-                            Description = r.Accommodation.Description,
-                            Logo = r.Accommodation.Logo,
-                            Address = r.Accommodation.Address,
-                            EmailAddress = r.Accommodation.EmailAddress,
-                            ContactNo = r.Accommodation.ContactNo,
-                            IsActive = r.Accommodation.IsActive,
-                            Status = r.Accommodation.Status.ToString(),
-                            ActiveRoomCount = r.Accommodation.Rooms.Count(rr => rr.IsActive)
-                        }
+                        Photos = r
+                            .Photos.Where(p => p.IsActive)
+                            .OrderBy(p => p.DisplayOrder)
+                            .Select(p => new RoomPhotoDTO
+                            {
+                                Id = p.Id,
+                                FileName = p.FileName,
+                                FileUrl = p.CdnUrl ?? p.S3Url,
+                                LastModified = p.LastModified,
+                            })
+                            .ToList(),
+                        Amenities = r
+                            .RoomAmenities.Select(ra => new AmenityDTO
+                            {
+                                Id = ra.Amenity.Id,
+                                Name = ra.Amenity.Name,
+                                Description = ra.Amenity.Description,
+                                Category = ra.Amenity.Category,
+                                IsActive = ra.Amenity.IsActive,
+                                LastModified = ra.Amenity.CreatedAt,
+                                DisplayOrder = ra.Amenity.DisplayOrder,
+                            })
+                            .ToList(),
+                        PricingRules = r
+                            .PricingRules.Where(pr => pr.IsActive)
+                            .Select(pr => new RoomPricingRuleDTO
+                            {
+                                Id = pr.Id,
+                                RoomId = pr.RoomId,
+                                RuleType = pr.RuleType.ToString(),
+                                Name = pr.Name,
+                                Description = pr.Description,
+                                DayOfWeek = pr.DayOfWeek,
+                                StartDate = pr.StartDate,
+                                EndDate = pr.EndDate,
+                                FixedPrice = pr.FixedPrice,
+                                IsActive = pr.IsActive,
+                                Priority = pr.Priority,
+                                MinimumNights = pr.MinimumNights,
+                                CreatedAt = pr.CreatedAt,
+                                UpdatedAt = pr.UpdatedAt,
+                            })
+                            .ToList(),
+                        MainPhotoUrl = r
+                            .Photos.OrderBy(p => p.DisplayOrder)
+                            .Select(p => p.CdnUrl ?? p.S3Url)
+                            .FirstOrDefault(),
+                        Accommodation =
+                            r.Accommodation == null
+                                ? null
+                                : new AccommodationSummaryDto
+                                {
+                                    Id = r.Accommodation.Id,
+                                    Name = r.Accommodation.Name,
+                                    Description = r.Accommodation.Description,
+                                    Logo = r.Accommodation.Logo,
+                                    Address = r.Accommodation.Address,
+                                    EmailAddress = r.Accommodation.EmailAddress,
+                                    ContactNo = r.Accommodation.ContactNo,
+                                    IsActive = r.Accommodation.IsActive,
+                                    Status = r.Accommodation.Status.ToString(),
+                                    ActiveRoomCount = r.Accommodation.Rooms.Count(rr =>
+                                        rr.IsActive
+                                    ),
+                                },
                     })
                     .FirstOrDefaultAsync();
 
@@ -247,7 +321,8 @@ namespace visita_booking_api.Controllers
             int id,
             [FromQuery] DateTime checkInDate,
             [FromQuery] DateTime checkOutDate,
-            [FromQuery] int numberOfGuests = 1)
+            [FromQuery] int numberOfGuests = 1
+        )
         {
             try
             {
@@ -273,8 +348,8 @@ namespace visita_booking_api.Controllers
                 }
 
                 // Verify room exists and select only required fields to avoid loading navigation properties
-                var roomInfo = await _context.Rooms
-                    .Where(r => r.Id == id && r.IsActive)
+                var roomInfo = await _context
+                    .Rooms.Where(r => r.Id == id && r.IsActive)
                     .Select(r => new { r.Id, r.MaxGuests })
                     .FirstOrDefaultAsync();
 
@@ -286,7 +361,9 @@ namespace visita_booking_api.Controllers
                 // Check if room can accommodate the number of guests
                 if (numberOfGuests > roomInfo.MaxGuests)
                 {
-                    return BadRequest($"Room can only accommodate up to {roomInfo.MaxGuests} guests");
+                    return BadRequest(
+                        $"Room can only accommodate up to {roomInfo.MaxGuests} guests"
+                    );
                 }
 
                 // Create availability request
@@ -295,18 +372,25 @@ namespace visita_booking_api.Controllers
                     RoomId = id,
                     CheckInDate = checkInDate.Date,
                     CheckOutDate = checkOutDate.Date,
-                    NumberOfGuests = numberOfGuests
+                    NumberOfGuests = numberOfGuests,
                 };
 
                 // Check availability using the existing booking service
-                var availability = await _bookingService.CheckAvailabilityAsync(availabilityRequest);
+                var availability = await _bookingService.CheckAvailabilityAsync(
+                    availabilityRequest
+                );
 
                 return Ok(availability);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error checking availability for room {RoomId} from {CheckIn} to {CheckOut}", 
-                    id, checkInDate, checkOutDate);
+                _logger.LogError(
+                    ex,
+                    "Error checking availability for room {RoomId} from {CheckIn} to {CheckOut}",
+                    id,
+                    checkInDate,
+                    checkOutDate
+                );
                 return StatusCode(500, "Internal server error");
             }
         }
@@ -336,7 +420,9 @@ namespace visita_booking_api.Controllers
                 }
 
                 // Validate AccommodationId and user permission
-                var accommodationValidation = await ValidateAccommodationAccess(request.AccommodationId);
+                var accommodationValidation = await ValidateAccommodationAccess(
+                    request.AccommodationId
+                );
                 if (accommodationValidation != null)
                 {
                     return accommodationValidation;
@@ -378,8 +464,8 @@ namespace visita_booking_api.Controllers
                 }
 
                 // Validate room exists and user has access
-                var room = await _context.Rooms
-                    .Include(r => r.Accommodation)
+                var room = await _context
+                    .Rooms.Include(r => r.Accommodation)
                     .FirstOrDefaultAsync(r => r.Id == id && r.IsActive);
 
                 if (room == null)
@@ -398,9 +484,10 @@ namespace visita_booking_api.Controllers
                 }
 
                 // Get current max display order for proper sequencing
-                var maxDisplayOrder = await _context.RoomPhotos
-                    .Where(p => p.RoomId == id && p.IsActive)
-                    .MaxAsync(p => (int?)p.DisplayOrder) ?? -1;
+                var maxDisplayOrder =
+                    await _context
+                        .RoomPhotos.Where(p => p.RoomId == id && p.IsActive)
+                        .MaxAsync(p => (int?)p.DisplayOrder) ?? -1;
 
                 var uploadedPhotos = new List<RoomPhotoDTO>();
                 var errors = new List<object>();
@@ -418,22 +505,39 @@ namespace visita_booking_api.Controllers
 
                         if (photo.Length > 10 * 1024 * 1024) // 10MB limit
                         {
-                            errors.Add(new { fileName = photo.FileName, error = "File size exceeds 10MB limit" });
+                            errors.Add(
+                                new
+                                {
+                                    fileName = photo.FileName,
+                                    error = "File size exceeds 10MB limit",
+                                }
+                            );
                             continue;
                         }
 
                         var allowedTypes = new[] { "image/jpeg", "image/png", "image/webp" };
                         if (!allowedTypes.Contains(photo.ContentType?.ToLower()))
                         {
-                            errors.Add(new { fileName = photo.FileName, error = "Invalid file type. Only JPEG, PNG, and WebP are allowed" });
+                            errors.Add(
+                                new
+                                {
+                                    fileName = photo.FileName,
+                                    error = "Invalid file type. Only JPEG, PNG, and WebP are allowed",
+                                }
+                            );
                             continue;
                         }
 
                         // Upload to S3
-                        var uploadResult = await _s3FileService.UploadFileAsync(photo, $"rooms/{id}/photos");
+                        var uploadResult = await _s3FileService.UploadFileAsync(
+                            photo,
+                            $"rooms/{id}/photos"
+                        );
                         if (!uploadResult.Success)
                         {
-                            errors.Add(new { fileName = photo.FileName, error = uploadResult.Error });
+                            errors.Add(
+                                new { fileName = photo.FileName, error = uploadResult.Error }
+                            );
                             continue;
                         }
 
@@ -445,11 +549,12 @@ namespace visita_booking_api.Controllers
                             S3Url = uploadResult.FileUrl ?? "",
                             FileName = uploadResult.FileName ?? photo.FileName,
                             FileSize = uploadResult.FileSize,
-                            ContentType = uploadResult.ContentType ?? photo.ContentType ?? "image/jpeg",
+                            ContentType =
+                                uploadResult.ContentType ?? photo.ContentType ?? "image/jpeg",
                             DisplayOrder = ++maxDisplayOrder,
                             IsActive = true,
                             UploadedAt = DateTime.UtcNow,
-                            LastModified = DateTime.UtcNow
+                            LastModified = DateTime.UtcNow,
                         };
 
                         _context.RoomPhotos.Add(roomPhoto);
@@ -461,15 +566,26 @@ namespace visita_booking_api.Controllers
                             Id = roomPhoto.Id,
                             FileName = roomPhoto.FileName,
                             FileUrl = roomPhoto.CdnUrl ?? roomPhoto.S3Url,
-                            LastModified = roomPhoto.LastModified
+                            LastModified = roomPhoto.LastModified,
                         };
 
                         uploadedPhotos.Add(photoDto);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error uploading photo {FileName} for room {RoomId}", photo.FileName, id);
-                        errors.Add(new { fileName = photo.FileName, error = "Upload failed due to server error" });
+                        _logger.LogError(
+                            ex,
+                            "Error uploading photo {FileName} for room {RoomId}",
+                            photo.FileName,
+                            id
+                        );
+                        errors.Add(
+                            new
+                            {
+                                fileName = photo.FileName,
+                                error = "Upload failed due to server error",
+                            }
+                        );
                     }
                 }
 
@@ -478,13 +594,17 @@ namespace visita_booking_api.Controllers
                 await _context.SaveChangesAsync();
 
                 // Return response with uploaded photos and any errors
-                return Ok(new
-                {
-                    message = $"Successfully uploaded {uploadedPhotos.Count} of {photos.Count} photos",
-                    uploadedPhotos,
-                    errors,
-                    totalPhotos = await _context.RoomPhotos.CountAsync(p => p.RoomId == id && p.IsActive)
-                });
+                return Ok(
+                    new
+                    {
+                        message = $"Successfully uploaded {uploadedPhotos.Count} of {photos.Count} photos",
+                        uploadedPhotos,
+                        errors,
+                        totalPhotos = await _context.RoomPhotos.CountAsync(p =>
+                            p.RoomId == id && p.IsActive
+                        ),
+                    }
+                );
             }
             catch (Exception ex)
             {
@@ -498,7 +618,10 @@ namespace visita_booking_api.Controllers
         /// </summary>
         [HttpPut("{id}")]
         [Authorize]
-        public async Task<ActionResult<RoomDetailsDTO>> UpdateRoom(int id, [FromForm] RoomUpdateDTO request)
+        public async Task<ActionResult<RoomDetailsDTO>> UpdateRoom(
+            int id,
+            [FromForm] RoomUpdateDTO request
+        )
         {
             try
             {
@@ -616,8 +739,8 @@ namespace visita_booking_api.Controllers
         private async Task<ActionResult?> ValidateAccommodationAccess(int accommodationId)
         {
             // Check if accommodation exists and is active
-            var accommodation = await _context.Accommodations
-                .Where(a => a.Id == accommodationId && a.IsActive)
+            var accommodation = await _context
+                .Accommodations.Where(a => a.Id == accommodationId && a.IsActive)
                 .FirstOrDefaultAsync();
 
             if (accommodation == null)
@@ -627,8 +750,10 @@ namespace visita_booking_api.Controllers
 
             // Check if user can modify this accommodation
             var currentUserId = GetCurrentUserId();
-            if (!currentUserId.HasValue || 
-                (accommodation.OwnerId != currentUserId.Value && !IsAdmin()))
+            if (
+                !currentUserId.HasValue
+                || (accommodation.OwnerId != currentUserId.Value && !IsAdmin())
+            )
             {
                 return Forbid("You can only create rooms for accommodations you own");
             }

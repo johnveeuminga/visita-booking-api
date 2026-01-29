@@ -577,6 +577,18 @@ namespace visita_booking_api.Controllers
                         .Take(3)
                         .Select(ra => ra.Amenity.Name)
                         .ToList(),
+                    Amenities = r
+                        .RoomAmenities.Select(ra => new AmenityDTO
+                        {
+                            Id = ra.Amenity.Id,
+                            Name = ra.Amenity.Name,
+                            Description = ra.Amenity.Description,
+                            Category = ra.Amenity.Category,
+                            IsActive = ra.Amenity.IsActive,
+                            LastModified = ra.Amenity.CreatedAt,
+                            DisplayOrder = ra.Amenity.DisplayOrder,
+                        })
+                        .ToList(),
                 })
                 .OrderBy(r => r.Name)
                 .ToListAsync();
