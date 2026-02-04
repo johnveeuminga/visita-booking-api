@@ -94,7 +94,7 @@ namespace visita_booking_api.Models.DTOs
         public string? DotAccreditationUrl { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
-        public int OwnerId { get; set; }
+        public int? OwnerId { get; set; }
         public string OwnerName { get; set; } = string.Empty;
         public string OwnerEmail { get; set; } = string.Empty;
         public int ActiveRoomCount { get; set; }

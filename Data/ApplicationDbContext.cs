@@ -233,7 +233,7 @@ namespace VisitaBookingApi.Data
             {
                 entity.HasKey(a => a.Id);
                 entity.Property(a => a.Name).IsRequired().HasMaxLength(200);
-                entity.Property(a => a.Description).HasMaxLength(1000);
+                entity.Property(a => a.Description).HasColumnType("longtext");
                 entity.Property(a => a.Logo).HasMaxLength(500);
                 entity.HasIndex(a => a.Name);
                 entity.HasIndex(a => a.IsActive);
@@ -243,6 +243,7 @@ namespace VisitaBookingApi.Data
                     .HasOne(a => a.Owner)
                     .WithMany()
                     .HasForeignKey(a => a.OwnerId)
+                    .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
             });
 

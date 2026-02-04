@@ -13,7 +13,7 @@ namespace visita_booking_api.Models.Entities
         [StringLength(200)]
         public string Name { get; set; } = string.Empty;
 
-        [StringLength(1000)]
+        [Column(TypeName = "longtext")]
         public string Description { get; set; } = string.Empty;
 
         [StringLength(500)]
@@ -71,12 +71,11 @@ namespace visita_booking_api.Models.Entities
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
         // Owner information (foreign key to User)
-        [Required]
-        public int OwnerId { get; set; }
+        public int? OwnerId { get; set; }
 
         // Navigation properties
         [ForeignKey(nameof(OwnerId))]
-        public virtual VisitaBookingApi.Models.User Owner { get; set; } = null!;
+        public virtual VisitaBookingApi.Models.User? Owner { get; set; }
 
         [ForeignKey(nameof(ApprovedById))]
         public virtual VisitaBookingApi.Models.User? ApprovedBy { get; set; }

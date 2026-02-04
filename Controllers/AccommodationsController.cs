@@ -164,8 +164,8 @@ namespace visita_booking_api.Controllers
                     CreatedAt = a.CreatedAt,
                     UpdatedAt = a.UpdatedAt,
                     OwnerId = a.OwnerId,
-                    OwnerName = a.Owner!.FullName,
-                    OwnerEmail = a.Owner.Email,
+                    OwnerName = a.Owner?.FullName ?? "Unknown",
+                    OwnerEmail = a.Owner?.Email ?? "Unknown",
                     ActiveRoomCount = a.Rooms.Count(r => r.IsActive),
                 };
 
@@ -276,8 +276,8 @@ namespace visita_booking_api.Controllers
                 CreatedAt = accommodation.CreatedAt,
                 UpdatedAt = accommodation.UpdatedAt,
                 OwnerId = accommodation.OwnerId,
-                OwnerName = accommodation.Owner!.FullName,
-                OwnerEmail = accommodation.Owner.Email,
+                OwnerName = accommodation.Owner?.FullName ?? "Unknown",
+                OwnerEmail = accommodation.Owner?.Email ?? "Unknown",
                 ActiveRoomCount = 0,
             };
 
@@ -474,8 +474,8 @@ namespace visita_booking_api.Controllers
                 CreatedAt = accommodation.CreatedAt,
                 UpdatedAt = accommodation.UpdatedAt,
                 OwnerId = accommodation.OwnerId,
-                OwnerName = accommodation.Owner!.FullName,
-                OwnerEmail = accommodation.Owner.Email,
+                OwnerName = accommodation.Owner?.FullName ?? "Unknown",
+                OwnerEmail = accommodation.Owner?.Email ?? "Unknown",
                 ActiveRoomCount = accommodation.Rooms.Count(r => r.IsActive),
             };
 

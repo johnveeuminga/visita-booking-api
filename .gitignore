@@ -6,6 +6,8 @@
 # dotenv files
 .env
 
+docs
+
 # User-specific files
 *.rsuser
 *.suo
